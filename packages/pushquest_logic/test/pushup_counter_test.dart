@@ -142,5 +142,50 @@ void main() {
       expect(counter.reps, 0);
       expect(counter.combo, 0);
     });
+
+    test('front placement counts a rep without ankles visible', () {
+      final counter = PushUpCounter(
+        mode: PushUpMode.floor,
+        placement: CameraPlacement.front,
+      );
+      counter.update(frontPose(elbowAngle: 165));
+      expect(counter.phase, CounterPhase.up);
+      counter.update(frontPose(elbowAngle: 100));
+      expect(counter.phase, CounterPhase.down);
+      final update = counter.update(frontPose(elbowAngle: 165));
+      expect(counter.reps, 1);
+      expect(update.completedRep, isNotNull);
+      expect(update.bodyVisible, isTrue);
+    });
+
+    test('front placement counts a shallower rep (threshold 110)', () {
+      final counter = PushUpCounter(
+        mode: PushUpMode.floor,
+        placement: CameraPlacement.front,
+      );
+      counter.update(frontPose(elbowAngle: 165));
+      counter.update(frontPose(elbowAngle: 105));
+      expect(counter.phase, CounterPhase.down);
+      final update = counter.update(frontPose(elbowAngle: 165));
+      expect(counter.reps, 1);
+      expect(update.completedRep, isNotNull);
+    });
+
+    test('front placement ignores hip sag without ankles', () {
+      final counter = PushUpCounter(
+        mode: PushUpMode.floor,
+        placement: CameraPlacement.front,
+      );
+      final update = counter.update(frontPose(elbowAngle: 165));
+      expect(update.feedback, isNot(FeedbackKind.hipSag));
+      expect(update.sagRatio, 0.0);
+    });
+
+    test('profile placement still requires ankles visible', () {
+      final counter = PushUpCounter(mode: PushUpMode.floor);
+      final update = counter.update(frontPose(elbowAngle: 165));
+      expect(update.bodyVisible, isFalse);
+      expect(update.feedback, FeedbackKind.notVisible);
+    });
   });
 }

@@ -36,6 +36,8 @@ class GameState extends ChangeNotifier {
 
   PushUpMode get defaultMode => _data.defaultMode;
 
+  CameraPlacement get defaultPlacement => _data.defaultPlacement;
+
   List<SessionRecord> get sessions => _data.sessions;
 
   int get todayReps {
@@ -63,6 +65,13 @@ class GameState extends ChangeNotifier {
   Future<void> setDefaultMode(PushUpMode mode) async {
     if (_data.defaultMode == mode) return;
     _data = _copyWith(_data, defaultMode: mode);
+    notifyListeners();
+    await _persist();
+  }
+
+  Future<void> setDefaultPlacement(CameraPlacement placement) async {
+    if (_data.defaultPlacement == placement) return;
+    _data = _copyWith(_data, defaultPlacement: placement);
     notifyListeners();
     await _persist();
   }
@@ -99,6 +108,7 @@ class GameState extends ChangeNotifier {
     final session = SessionRecord(
       startedAt: summary.startedAt,
       mode: summary.mode,
+      placement: summary.placement,
       reps: summary.reps,
       points: awardedPoints,
       bestCombo: summary.bestCombo,
@@ -129,6 +139,7 @@ class GameState extends ChangeNotifier {
       lastActiveDate: todayKey,
       sessions: sessions,
       defaultMode: _data.defaultMode,
+      defaultPlacement: _data.defaultPlacement,
     );
 
     final newlyUnlocked = AchievementCatalog.all
@@ -157,6 +168,7 @@ class GameState extends ChangeNotifier {
   static PersistedData _copyWith(
     PersistedData data, {
     PushUpMode? defaultMode,
+    CameraPlacement? defaultPlacement,
   }) {
     return PersistedData(
       totalReps: data.totalReps,
@@ -171,6 +183,7 @@ class GameState extends ChangeNotifier {
       lastActiveDate: data.lastActiveDate,
       sessions: data.sessions,
       defaultMode: defaultMode ?? data.defaultMode,
+      defaultPlacement: defaultPlacement ?? data.defaultPlacement,
     );
   }
 }

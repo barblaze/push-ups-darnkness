@@ -111,8 +111,11 @@ class ResultsScreen extends StatelessWidget {
               FilledButton(
                 onPressed: () => Navigator.of(context).pushReplacement(
                   MaterialPageRoute(
-                    builder: (_) =>
-                        WorkoutScreen(state: state, mode: session.mode),
+                    builder: (_) => WorkoutScreen(
+                      state: state,
+                      mode: session.mode,
+                      placement: session.placement,
+                    ),
                   ),
                 ),
                 child: const Text('ENTRENAR DE NUEVO'),

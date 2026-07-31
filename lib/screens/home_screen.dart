@@ -34,6 +34,8 @@ class HomeScreen extends StatelessWidget {
                   const SizedBox(height: 16),
                   _modeSelector(),
                   const SizedBox(height: 16),
+                  _placementSelector(),
+                  const SizedBox(height: 16),
                   _missionCard(mission),
                   const SizedBox(height: 24),
                   FilledButton(
@@ -44,7 +46,9 @@ class HomeScreen extends StatelessWidget {
                   OutlinedButton.icon(
                     onPressed: () => Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => const CalibrationScreen(),
+                        builder: (_) => CalibrationScreen(
+                          placement: state.defaultPlacement,
+                        ),
                       ),
                     ),
                     icon: const Icon(Icons.science_outlined),
@@ -64,7 +68,11 @@ class HomeScreen extends StatelessWidget {
   void _startWorkout(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => WorkoutScreen(state: state, mode: state.defaultMode),
+        builder: (_) => WorkoutScreen(
+          state: state,
+          mode: state.defaultMode,
+          placement: state.defaultPlacement,
+        ),
       ),
     );
   }
@@ -197,6 +205,59 @@ class HomeScreen extends StatelessWidget {
         selectedBackgroundColor: AppColors.primary,
         foregroundColor: AppColors.textSecondary,
         selectedForegroundColor: Colors.white,
+      ),
+    );
+  }
+
+  Widget _placementSelector() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Posición de cámara',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<CameraPlacement>(
+                segments: [
+                  for (final placement in CameraPlacement.values)
+                    ButtonSegment(
+                      value: placement,
+                      label:
+                          Text('${placement.icon} ${placement.label}'),
+                    ),
+                ],
+                selected: {state.defaultPlacement},
+                onSelectionChanged: (selection) =>
+                    state.setDefaultPlacement(selection.first),
+                showSelectedIcon: false,
+                style: SegmentedButton.styleFrom(
+                  backgroundColor: AppColors.surfaceAlt,
+                  selectedBackgroundColor: AppColors.accent,
+                  foregroundColor: AppColors.textSecondary,
+                  selectedForegroundColor: Colors.white,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              state.defaultPlacement.positionHint,
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

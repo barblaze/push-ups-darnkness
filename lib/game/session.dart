@@ -4,6 +4,7 @@ class SessionRecord {
   const SessionRecord({
     required this.startedAt,
     required this.mode,
+    required this.placement,
     required this.reps,
     required this.points,
     required this.bestCombo,
@@ -12,6 +13,7 @@ class SessionRecord {
 
   final DateTime startedAt;
   final PushUpMode mode;
+  final CameraPlacement placement;
   final int reps;
   final int points;
   final int bestCombo;
@@ -20,6 +22,7 @@ class SessionRecord {
   Map<String, dynamic> toJson() => {
         'd': startedAt.millisecondsSinceEpoch,
         'm': mode.name,
+        'pl': placement.name,
         'r': reps,
         'p': points,
         'c': bestCombo,
@@ -30,6 +33,8 @@ class SessionRecord {
     return SessionRecord(
       startedAt: DateTime.fromMillisecondsSinceEpoch(json['d'] as int),
       mode: PushUpMode.values.asNameMap()[json['m']] ?? PushUpMode.floor,
+      placement: CameraPlacement.values.asNameMap()[json['pl']] ??
+          CameraPlacement.profile,
       reps: json['r'] as int,
       points: json['p'] as int,
       bestCombo: json['c'] as int,
@@ -52,6 +57,7 @@ class PersistedData {
     required this.lastActiveDate,
     required this.sessions,
     required this.defaultMode,
+    required this.defaultPlacement,
   });
 
   final int totalReps;
@@ -66,6 +72,7 @@ class PersistedData {
   final String? lastActiveDate;
   final List<SessionRecord> sessions;
   final PushUpMode defaultMode;
+  final CameraPlacement defaultPlacement;
 
   static const PersistedData empty = PersistedData(
     totalReps: 0,
@@ -80,6 +87,7 @@ class PersistedData {
     lastActiveDate: null,
     sessions: [],
     defaultMode: PushUpMode.floor,
+    defaultPlacement: CameraPlacement.profile,
   );
 
   PlayerStats get stats => PlayerStats(
@@ -107,6 +115,7 @@ class PersistedData {
         'lastActiveDate': lastActiveDate,
         'sessions': sessions.map((s) => s.toJson()).toList(),
         'defaultMode': defaultMode.name,
+        'defaultPlacement': defaultPlacement.name,
       };
 
   static PersistedData fromJson(Map<String, dynamic> json) {
@@ -126,6 +135,9 @@ class PersistedData {
           .toList(),
       defaultMode: PushUpMode.values.asNameMap()[json['defaultMode']] ??
           PushUpMode.floor,
+      defaultPlacement:
+          CameraPlacement.values.asNameMap()[json['defaultPlacement']] ??
+              CameraPlacement.profile,
     );
   }
 }

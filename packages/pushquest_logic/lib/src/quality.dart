@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'geometry.dart';
+import 'placement.dart';
 import 'pose_data.dart';
 
 class BodyAnalysis {
@@ -46,7 +47,10 @@ Joint? _visible(Joint a, Joint b) {
   return null;
 }
 
-BodyAnalysis analyzeBody(PoseData pose) {
+BodyAnalysis analyzeBody(
+  PoseData pose, {
+  CameraPlacement placement = CameraPlacement.profile,
+}) {
   final shoulderL = pose.leftShoulder;
   final shoulderR = pose.rightShoulder;
   final elbowL = pose.leftElbow;
@@ -60,11 +64,20 @@ BodyAnalysis analyzeBody(PoseData pose) {
   final hips = _visible(pose.leftHip, pose.rightHip);
   final ankles = _visible(pose.leftAnkle, pose.rightAnkle);
 
-  if (shoulders == null ||
-      elbows == null ||
-      wrists == null ||
-      hips == null ||
-      ankles == null) {
+  final front = placement == CameraPlacement.front;
+  final needFullBody = !front;
+
+  if (shoulders == null || elbows == null || wrists == null) {
+    return const BodyAnalysis(
+      bodyVisible: false,
+      elbowAngle: 0,
+      sagRatio: 0,
+      plank: false,
+      plankRatio: 0,
+    );
+  }
+
+  if (needFullBody && (hips == null || ankles == null)) {
     return const BodyAnalysis(
       bodyVisible: false,
       elbowAngle: 0,
@@ -76,7 +89,9 @@ BodyAnalysis analyzeBody(PoseData pose) {
 
   final elbowAngle = angleAt(shoulders, elbows, wrists);
 
-  final torsoLen = distance(shoulders, ankles);
+  final torsoLen = ankles != null
+      ? distance(shoulders, ankles)
+      : (hips != null ? distance(shoulders, hips) : 0);
   if (torsoLen == 0) {
     return const BodyAnalysis(
       bodyVisible: false,
@@ -87,11 +102,14 @@ BodyAnalysis analyzeBody(PoseData pose) {
     );
   }
 
-  final plankRatio = (shoulders.y - hips.y).abs() / torsoLen;
-  final plank = plankRatio <= 0.18;
+  final plankRatio =
+      hips == null ? 0.0 : (shoulders.y - hips.y).abs() / torsoLen;
+  final plank = front || hips == null ? true : plankRatio <= 0.18;
 
-  final deviation = signedDistanceToLine(hips, shoulders, ankles);
-  final orientation = shoulders.x < ankles.x ? 1.0 : -1.0;
+  final deviation = ankles == null || hips == null
+      ? 0.0
+      : signedDistanceToLine(hips, shoulders, ankles);
+  final orientation = ankles == null || shoulders.x < ankles.x ? 1.0 : -1.0;
   final sagRatio = deviation * orientation / torsoLen;
 
   return BodyAnalysis(

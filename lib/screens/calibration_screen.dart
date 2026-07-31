@@ -10,7 +10,12 @@ import '../theme/app_theme.dart';
 import '../widgets/pose_overlay_painter.dart';
 
 class CalibrationScreen extends StatefulWidget {
-  const CalibrationScreen({super.key});
+  const CalibrationScreen({
+    super.key,
+    this.placement = CameraPlacement.profile,
+  });
+
+  final CameraPlacement placement;
 
   @override
   State<CalibrationScreen> createState() => _CalibrationScreenState();
@@ -240,10 +245,14 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
 
   Widget _hudPanel() {
     final pose = _lastPose;
-    final analysis = pose == null ? null : analyzeBody(pose);
+    final placement = widget.placement;
+    final analysis = pose == null ? null : analyzeBody(pose, placement: placement);
+    final upAngle = upAngleFor(PushUpMode.floor, placement);
+    final targetAngle = targetAngleFor(PushUpMode.floor, placement);
     final depth = analysis == null
         ? 0.0
-        : ((160 - analysis.elbowAngle) / (160 - 80)).clamp(0.0, 1.0);
+        : ((upAngle - analysis.elbowAngle) / (upAngle - targetAngle))
+            .clamp(0.0, 1.0);
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -266,6 +275,11 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
           const SizedBox(height: 10),
           _row('FPS', _fps.toStringAsFixed(1)),
           _row('Frame', '$_frameMs ms · $_frameWidth×$_frameHeight'),
+          _row(
+            'Posición',
+            '${placement.icon} ${placement.label}',
+            color: AppColors.accent,
+          ),
           _row('Procesados', '$_processedFrames frames'),
           const Divider(color: Colors.white24, height: 20),
           if (pose == null)
@@ -276,6 +290,11 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
           else ...[
             _row('Ángulo codo', '${analysis!.elbowAngle.toStringAsFixed(1)}°'),
             _row('Profundidad', '${(depth * 100).toStringAsFixed(0)}%'),
+            _row(
+              'Umbral cuenta',
+              '${countAngleFor(PushUpMode.floor, placement).toStringAsFixed(0)}°',
+              color: AppColors.warning,
+            ),
             _row('Plancha', analysis.plank ? 'SÍ' : 'no',
                 color: analysis.plank ? AppColors.success : AppColors.danger),
             _row(

@@ -15,10 +15,16 @@ import '../widgets/pose_overlay_painter.dart';
 import 'results_screen.dart';
 
 class WorkoutScreen extends StatefulWidget {
-  const WorkoutScreen({super.key, required this.state, required this.mode});
+  const WorkoutScreen({
+    super.key,
+    required this.state,
+    required this.mode,
+    required this.placement,
+  });
 
   final GameState state;
   final PushUpMode mode;
+  final CameraPlacement placement;
 
   @override
   State<WorkoutScreen> createState() => _WorkoutScreenState();
@@ -26,7 +32,7 @@ class WorkoutScreen extends StatefulWidget {
 
 class _WorkoutScreenState extends State<WorkoutScreen> {
   final PoseDetectorService _poseDetector = PoseDetectorService();
-  final PushUpCounter _counter = PushUpCounter();
+  late final PushUpCounter _counter;
 
   static final PoseData _emptyPose = PoseData(
     List.generate(PoseData.count, (_) => const Joint(0, 0, 0)),
@@ -57,6 +63,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   @override
   void initState() {
     super.initState();
+    _counter = PushUpCounter(mode: widget.mode, placement: widget.placement);
     _init();
   }
 
@@ -214,6 +221,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
     final summary = WorkoutSummary(
       startedAt: _sessionStart ?? DateTime.now(),
       mode: widget.mode,
+      placement: widget.placement,
       reps: _counter.reps,
       points: _totalPoints,
       bestCombo: _bestCombo,
@@ -426,7 +434,9 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            widget.mode.positionHint,
+            widget.placement == CameraPlacement.profile
+                ? widget.mode.positionHint
+                : widget.placement.positionHint,
             textAlign: TextAlign.center,
             style: const TextStyle(color: Colors.white70, fontSize: 13),
           ),

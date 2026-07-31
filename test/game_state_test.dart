@@ -16,6 +16,7 @@ void main() {
           WorkoutSummary(
             startedAt: DateTime(2026, 7, 31),
             mode: PushUpMode.floor,
+            placement: CameraPlacement.profile,
             reps: 10,
             points: 80,
             bestCombo: 3,
@@ -48,6 +49,7 @@ void main() {
         WorkoutSummary(
           startedAt: DateTime.now(),
           mode: PushUpMode.floor,
+          placement: CameraPlacement.front,
           reps: mission.targetReps,
           points: 100,
           bestCombo: 5,
@@ -64,6 +66,7 @@ void main() {
         WorkoutSummary(
           startedAt: DateTime.now(),
           mode: PushUpMode.floor,
+          placement: CameraPlacement.profile,
           reps: 5,
           points: 30,
           bestCombo: 2,
@@ -84,6 +87,7 @@ void main() {
         WorkoutSummary(
           startedAt: DateTime(2026, 7, 31),
           mode: PushUpMode.parallettes,
+          placement: CameraPlacement.profile,
           reps: 20,
           points: 150,
           bestCombo: 10,
@@ -99,6 +103,7 @@ void main() {
         WorkoutSummary(
           startedAt: DateTime(2026, 7, 31),
           mode: PushUpMode.floor,
+          placement: CameraPlacement.profile,
           reps: 0,
           points: 0,
           bestCombo: 0,
@@ -115,6 +120,16 @@ void main() {
       await state.setDefaultMode(PushUpMode.parallettes);
       expect(state.defaultMode, PushUpMode.parallettes);
       expect(storage.data.defaultMode, PushUpMode.parallettes);
+    });
+
+    test('default placement can be changed and persists', () async {
+      final storage = MemoryGameStorage();
+      final state = await GameState.load(storage: storage);
+
+      expect(state.defaultPlacement, CameraPlacement.profile);
+      await state.setDefaultPlacement(CameraPlacement.front);
+      expect(state.defaultPlacement, CameraPlacement.front);
+      expect(storage.data.defaultPlacement, CameraPlacement.front);
     });
   });
 
@@ -135,6 +150,7 @@ void main() {
           SessionRecord(
             startedAt: DateTime(2026, 7, 31, 10, 30),
             mode: PushUpMode.floor,
+            placement: CameraPlacement.profile,
             reps: 25,
             points: 180,
             bestCombo: 6,
@@ -142,6 +158,7 @@ void main() {
           ),
         ],
         defaultMode: PushUpMode.parallettes,
+        defaultPlacement: CameraPlacement.front,
       );
 
       final decoded = PersistedData.fromJson(original.toJson());
@@ -150,9 +167,11 @@ void main() {
       expect(decoded.totalXp, original.totalXp);
       expect(decoded.streakDays, original.streakDays);
       expect(decoded.defaultMode, PushUpMode.parallettes);
+      expect(decoded.defaultPlacement, CameraPlacement.front);
       expect(decoded.sessions.length, 1);
       expect(decoded.sessions.first.reps, 25);
       expect(decoded.sessions.first.mode, PushUpMode.floor);
+      expect(decoded.sessions.first.placement, CameraPlacement.profile);
     });
   });
 }

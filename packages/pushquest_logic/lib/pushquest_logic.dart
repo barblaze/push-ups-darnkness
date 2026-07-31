@@ -2,6 +2,7 @@ export 'src/avatar.dart';
 export 'src/challenges.dart';
 export 'src/geometry.dart';
 export 'src/levels.dart';
+export 'src/placement.dart';
 export 'src/pose_data.dart';
 export 'src/pushup_counter.dart';
 export 'src/pushup_mode.dart';

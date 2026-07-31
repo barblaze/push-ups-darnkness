@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'placement.dart';
 import 'pose_data.dart';
 import 'pushup_mode.dart';
 import 'quality.dart';
@@ -50,15 +51,20 @@ class FrameUpdate {
 }
 
 class PushUpCounter {
-  PushUpCounter({this.mode = PushUpMode.floor});
+  PushUpCounter({
+    this.mode = PushUpMode.floor,
+    this.placement = CameraPlacement.profile,
+  });
 
   final PushUpMode mode;
 
-  double get upAngle => mode.upAngle;
+  final CameraPlacement placement;
 
-  double get countAngle => mode.countAngle;
+  double get upAngle => upAngleFor(mode, placement);
 
-  double get targetAngle => mode.targetAngle;
+  double get countAngle => countAngleFor(mode, placement);
+
+  double get targetAngle => targetAngleFor(mode, placement);
 
   CounterPhase _phase = CounterPhase.up;
   int _reps = 0;
@@ -89,7 +95,7 @@ class PushUpCounter {
       _combo = 0;
     }
 
-    final analysis = analyzeBody(pose);
+    final analysis = analyzeBody(pose, placement: placement);
     if (!analysis.bodyVisible) {
       _liveDepth = 0;
       return FrameUpdate(

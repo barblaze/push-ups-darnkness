@@ -8,7 +8,9 @@ con puntos, rachas, niveles, avatar, misión diaria, logros y estadísticas.
   libre (solo cuenta tus reps, sin reglas ni puntuación).
 - Feedback en vivo: profundidad, cadera baja/elevada, plancha, no visibilidad.
 - Reps "perfectas" dan más puntos y mantienen el combo; una mala lo rompe.
-- Objetivo diario determinista (10-48 reps) con bonus de +50 XP.
+- Objetivo diario determinista (6-24 reps) con bonus de +50 XP.
+- Posición de cámara configurable: **Perfil** (celular de lado) o **De frente**
+  (celular vertical enfrente de ti).
 - Sin servidores: todos los datos viven en el dispositivo.
 
 ## Estructura
@@ -44,16 +46,18 @@ No necesitas toolchain local de Flutter/Android:
 
 1. Abre PushQuest y dale permiso de cámara.
 2. Elige modo **Piso**, **Paralelas** o **Libre**.
-3. Coloca el teléfono de lado, con la cámara apuntando a tu perfil completo.
+3. Elige la posición de cámara: **Perfil** (celular de lado, viendo tu perfil
+   completo) o **De frente** (celular vertical enfrente de ti, con los pies
+   dentro del cuadro).
 4. Toca **ENTRENAR** y haz push-ups: cuenta reps, evalúa tu forma y acumula
    puntos.
 
 ## Probar la detección
 
 Desde el inicio toca **Probar detección** para ver en vivo el esqueleto y un HUD
-de diagnóstico (FPS, ms por frame, ángulo de codo, profundidad, plancha y
-visibilidad de los puntos clave). Útil para verificar la cámara y calibrar los
-umbrales de conteo.
+de diagnóstico (FPS, ms por frame, ángulo de codo, umbral de conteo, plancha y
+visibilidad de los puntos clave). Usa la posición de cámara seleccionada en el
+inicio. Útil para verificar la cámara y calibrar los umbrales de conteo.
 
 ## Desarrollo local
 

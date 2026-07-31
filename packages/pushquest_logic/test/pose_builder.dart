@@ -30,6 +30,28 @@ PoseData plankPose({required double elbowAngle, double sag = 0}) {
   return PoseData(joints);
 }
 
+PoseData frontPose({required double elbowAngle}) {
+  final joints = List<Joint>.generate(33, (i) => const Joint(0, 0, 0));
+  const shoulder = Joint(0.3, 0.5);
+  const elbow = Joint(0.3, 0.62);
+  final theta = elbowAngle * math.pi / 180;
+  final wrist = Joint(
+    0.3 + 0.12 * math.sin(theta),
+    0.62 - 0.12 * math.cos(theta),
+  );
+  const hip = Joint(0.3, 0.72);
+
+  joints[11] = shoulder;
+  joints[12] = shoulder;
+  joints[13] = elbow;
+  joints[14] = elbow;
+  joints[15] = wrist;
+  joints[16] = wrist;
+  joints[23] = hip;
+  joints[24] = hip;
+  return PoseData(joints);
+}
+
 PoseData invisible() =>
     PoseData(List<Joint>.generate(33, (i) => const Joint(0, 0, 0)));
 
