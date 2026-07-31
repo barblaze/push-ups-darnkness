@@ -1,0 +1,26 @@
+name: pushquest
+description: PushQuest - Push-ups como juego con deteccion de pose en tiempo real.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  pushquest_logic:
+    path: packages/pushquest_logic
+  camera: ^0.12.0+2
+  flutter_pose_detection: ^0.4.1
+  permission_handler: ^11.4.0
+  shared_preferences: ^2.5.5
+  fl_chart: ^1.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

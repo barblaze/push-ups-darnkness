@@ -1,0 +1,22 @@
+# Dart
+.dart_tool/
+*.iml
+*.lock
+
+# Flutter
+/flutter/
+.packages
+.pub-cache/
+.pub/
+build/
+
+# Android
+/android/.gradle/
+/android/local.properties
+/android/captures/
+/android/app/.cxx/
+
+# IDE
+.idea/
+*.iml
+.vscode/
