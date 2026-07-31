@@ -32,6 +32,7 @@ class WorkoutScreen extends StatefulWidget {
 
 class _WorkoutScreenState extends State<WorkoutScreen> {
   final PoseDetectorService _poseDetector = PoseDetectorService();
+  final HighFiveDetector _highFive = HighFiveDetector();
   late final PushUpCounter _counter;
 
   static final PoseData _emptyPose = PoseData(
@@ -45,6 +46,11 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   bool _finished = false;
   String? _fatalError;
   String _status = 'Iniciando…';
+
+  bool _counting = false;
+  int _countdown = 3;
+  Timer? _countdownTimer;
+  bool _stoppingByHighFive = false;
 
   DateTime? _sessionStart;
   Timer? _elapsedTimer;
@@ -69,6 +75,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
 
   @override
   void dispose() {
+    _countdownTimer?.cancel();
     _elapsedTimer?.cancel();
     _cameraController?.stopImageStream();
     _cameraController?.dispose();
@@ -133,18 +140,11 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
       if (!mounted) return;
       setState(() {
         _isInitializing = false;
-        _status = 'Detector listo';
-        _sessionStart = DateTime.now();
-      });
-
-      _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (!mounted || _sessionStart == null) return;
-        setState(() {
-          _elapsedSeconds = DateTime.now().difference(_sessionStart!).inSeconds;
-        });
+        _status = 'Prepárate';
       });
 
       await controller.startImageStream(_onFrame);
+      _startCountdown();
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -153,6 +153,35 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
         });
       }
     }
+  }
+
+  void _startCountdown() {
+    setState(() {
+      _countdown = 3;
+      _counting = false;
+    });
+    _countdownTimer?.cancel();
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return;
+      if (_countdown > 1) {
+        setState(() => _countdown -= 1);
+      } else {
+        timer.cancel();
+        setState(() {
+          _countdown = 0;
+          _counting = true;
+          _status = '¡Ya!';
+          _sessionStart = DateTime.now();
+        });
+        _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+          if (!mounted || _sessionStart == null) return;
+          setState(() {
+            _elapsedSeconds =
+                DateTime.now().difference(_sessionStart!).inSeconds;
+          });
+        });
+      }
+    });
   }
 
   Future<void> _onFrame(CameraImage image) async {
@@ -171,6 +200,15 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
           : now.difference(_lastFrameTime!).inMilliseconds / 1000;
       _lastFrameTime = now;
 
+      if (mounted) setState(() => _lastPose = pose);
+
+      if (!_counting) return;
+
+      if (_highFive.update(pose ?? _emptyPose, dt)) {
+        _handleHighFive();
+        return;
+      }
+
       final update = _counter.update(
         pose ?? _emptyPose,
         elapsedSinceLastFrame: dt,
@@ -187,7 +225,6 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
 
       if (mounted) {
         setState(() {
-          _lastPose = pose;
           _lastUpdate = update;
         });
       }
@@ -196,6 +233,55 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
     } finally {
       _isProcessing = false;
     }
+  }
+
+  void _handleHighFive() {
+    if (_finished) return;
+    setState(() => _stoppingByHighFive = true);
+    HapticFeedback.heavyImpact();
+    Timer(const Duration(milliseconds: 900), () {
+      if (mounted) _finish();
+    });
+  }
+
+  void _resetSession() {
+    setState(() {
+      _counter.reset();
+      _highFive.reset();
+      _totalPoints = 0;
+      _bestCombo = 0;
+      _elapsedSeconds = 0;
+      _sessionStart = DateTime.now();
+      _lastPose = null;
+      _lastUpdate = null;
+      _lastFrameTime = null;
+      _popupVisible = false;
+    });
+  }
+
+  Future<void> _confirmReset() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('¿Reiniciar sesión?'),
+        content: const Text(
+          'Se pondrán las reps, puntos y tiempo en cero.',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Reiniciar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) _resetSession();
   }
 
   void _showRepPopup(CompletedRep rep) {
@@ -338,12 +424,14 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
             children: [
               _topBar(),
               const Spacer(),
-              _repCounter(),
+              if (_counting) _repCounter(),
               const Spacer(),
-              _feedbackPanel(),
+              if (_counting) _feedbackPanel(),
             ],
           ),
         ),
+        if (!_counting) _countdownOverlay(),
+        if (_stoppingByHighFive) _highFiveOverlay(),
         _repPopup(),
       ],
     );
@@ -354,6 +442,12 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: Row(
         children: [
+          IconButton(
+            onPressed: _confirmReset,
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            style: IconButton.styleFrom(backgroundColor: Colors.black45),
+          ),
+          const SizedBox(width: 4),
           IconButton(
             onPressed: _confirmFinish,
             icon: const Icon(Icons.close, color: Colors.white),
@@ -372,6 +466,115 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
           const SizedBox(width: 8),
           _hudChip(widget.mode.icon, widget.mode.label),
         ],
+      ),
+    );
+  }
+
+  Widget _countdownOverlay() {
+    final pose = _lastPose;
+    final analysis = pose == null
+        ? null
+        : analyzeBody(pose, placement: widget.placement);
+    final bodyOk = analysis?.bodyVisible ?? false;
+    final plankOk = bodyOk && (widget.mode == PushUpMode.free || analysis!.plank);
+    return IgnorePointer(
+      child: Container(
+        color: Colors.black.withValues(alpha: 0.45),
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              'PREPÁRATE',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 4,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '$_countdown',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 120,
+                fontWeight: FontWeight.w900,
+                height: 1.1,
+                shadows: [Shadow(color: Colors.black87, blurRadius: 16)],
+              ),
+            ),
+            const SizedBox(height: 24),
+            _readyChip('Cuerpo visible', bodyOk, Icons.accessibility_new),
+            const SizedBox(height: 8),
+            if (widget.mode != PushUpMode.free)
+              _readyChip('En posición de lagartija', plankOk,
+                  Icons.sports_gymnastics),
+            const SizedBox(height: 24),
+            const Text(
+              'Termina tu serie con una mano en alto',
+              style: TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _readyChip(String label, bool ok, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.black54,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: ok ? AppColors.success : Colors.white38),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            ok ? '✓' : '✗',
+            style: TextStyle(
+              color: ok ? AppColors.success : AppColors.danger,
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _highFiveOverlay() {
+    return IgnorePointer(
+      child: Container(
+        color: Colors.black.withValues(alpha: 0.55),
+        alignment: Alignment.center,
+        child: const Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text('🖐️', style: TextStyle(fontSize: 72)),
+            SizedBox(height: 12),
+            Text(
+              '¡ALTO! Sesión terminada',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

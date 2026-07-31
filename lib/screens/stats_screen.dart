@@ -129,12 +129,6 @@ class StatsScreen extends StatelessWidget {
                       icon: Icons.terrain,
                       accent: AppColors.accent,
                     ),
-                    StatCard(
-                      label: 'Reps en paralelas',
-                      value: '${stats.parallettesReps}',
-                      icon: Icons.sports_gymnastics,
-                      accent: AppColors.accent,
-                    ),
                   ],
                 ),
               ],
@@ -205,7 +199,6 @@ class StatsScreen extends StatelessWidget {
                                 child: Text(
                                   switch (m) {
                                     PushUpMode.floor => 'p',
-                                    PushUpMode.parallettes => 'P',
                                     PushUpMode.free => 'L',
                                   },
                                   style: const TextStyle(
@@ -227,7 +220,6 @@ class StatsScreen extends StatelessWidget {
                               toY: recent[i].reps.toDouble(),
                               color: switch (recent[i].mode) {
                                 PushUpMode.floor => AppColors.primary,
-                                PushUpMode.parallettes => AppColors.accent,
                                 PushUpMode.free => AppColors.success,
                               },
                               width: 12,

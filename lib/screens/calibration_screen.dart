@@ -38,6 +38,8 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
   int _processedFrames = 0;
   int _frameWidth = 0;
   int _frameHeight = 0;
+  double _signalMin = double.infinity;
+  double _signalMax = double.negativeInfinity;
 
   @override
   void initState() {
@@ -147,6 +149,17 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
       if (dt > 0) {
         final instant = 1000 / dt;
         _fps = _fps == 0 ? instant : _fps * 0.8 + instant * 0.2;
+      }
+
+      final front = widget.placement == CameraPlacement.front;
+      final analysis =
+          pose == null ? null : analyzeBody(pose, placement: widget.placement);
+      if (analysis != null && analysis.bodyVisible) {
+        final signal = front ? analysis.dropRatio : analysis.elbowAngle;
+        setState(() {
+          if (signal < _signalMin) _signalMin = signal;
+          if (signal > _signalMax) _signalMax = signal;
+        });
       }
 
       if (mounted) {
@@ -333,6 +346,8 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
               ),
               _row('Cadera (sag)', analysis.sagRatio.toStringAsFixed(3)),
             ],
+            const SizedBox(height: 6),
+            _signalTracker(front),
             const SizedBox(height: 4),
             Text(
               'Visibilidad: '
@@ -346,15 +361,133 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
             const SizedBox(height: 8),
             Text(
               front
-                  ? 'Haz 2-3 lagartijas: el "Drop ratio" debe bajar de 0.55 y '
-                      'volver a subir de 0.85. Anota FPS y drop ratio abajo.'
+                  ? 'Haz 2-3 lagartijas: el "Drop ratio" debe bajar y volver a '
+                      'subir. Anota FPS y el mínimo del drop ratio.'
                   : 'Haz 2-3 lagartijas: el esqueleto debe seguirte y el ángulo '
-                      'de codo bajar de ~90°. Anota FPS y ángulo al bajar.',
+                      'de codo bajar. Anota FPS y el ángulo mínimo.',
               style: const TextStyle(color: Colors.white54, fontSize: 12, height: 1.4),
             ),
           ],
         ],
       ),
+    );
+  }
+
+  Widget _signalTracker(bool front) {
+    final hasRange =
+        _signalMin.isFinite && _signalMax.isFinite && _signalMax > _signalMin;
+    if (!hasRange) {
+      return const Text(
+        'Sin rango todavía: haz al menos 1 lagartija completa.',
+        style: TextStyle(color: Colors.white54, fontSize: 12),
+      );
+    }
+    final pose = _lastPose;
+    final analysis =
+        pose == null ? null : analyzeBody(pose, placement: widget.placement);
+    final signal = analysis == null
+        ? 0.0
+        : (front ? analysis.dropRatio : analysis.elbowAngle);
+    final countThreshold = front
+        ? frontDownDropFor(PushUpMode.floor)
+        : countAngleFor(PushUpMode.floor, widget.placement);
+    final suggested = front
+        ? _signalMin + (_signalMax - _signalMin) * 0.2
+        : _signalMin + 10.0;
+
+    final range = _signalMax - _signalMin;
+    final fraction = ((signal - _signalMin) / range).clamp(0.0, 1.0);
+    final thresholdFrac =
+        ((countThreshold - _signalMin) / range).clamp(0.0, 1.0);
+    final isDeep = signal <= countThreshold;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Rango señal',
+              style: const TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+            Text(
+              front
+                  ? '${_signalMin.toStringAsFixed(3)} → '
+                      '${_signalMax.toStringAsFixed(3)}'
+                  : '${_signalMin.toStringAsFixed(0)}° → '
+                      '${_signalMax.toStringAsFixed(0)}°',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        SizedBox(
+          height: 14,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: double.infinity,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      color: Colors.white12,
+                      borderRadius: BorderRadius.circular(7),
+                      border: Border.all(color: Colors.white24),
+                    ),
+                  ),
+                  Positioned(
+                    left: thresholdFrac * width - 2,
+                    child: Container(
+                      width: 2,
+                      height: 20,
+                      color: AppColors.warning,
+                    ),
+                  ),
+                  Positioned(
+                    left: fraction * width - 5,
+                    top: 1,
+                    child: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: isDeep ? AppColors.success : Colors.white,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.black, width: 1.5),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 6),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Mínimo observado',
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+            Text(
+              'Cuenta sugerida ≤ ${front ? suggested.toStringAsFixed(2) : '${suggested.toStringAsFixed(0)}°'}',
+              style: const TextStyle(
+                color: AppColors.accent,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 

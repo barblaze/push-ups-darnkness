@@ -1,6 +1,7 @@
 export 'src/avatar.dart';
 export 'src/challenges.dart';
 export 'src/geometry.dart';
+export 'src/high_five.dart';
 export 'src/levels.dart';
 export 'src/placement.dart';
 export 'src/pose_data.dart';

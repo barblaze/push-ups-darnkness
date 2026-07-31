@@ -132,8 +132,6 @@ class GameState extends ChangeNotifier {
       streakDays: streak,
       floorReps: _data.floorReps +
           (summary.mode == PushUpMode.floor ? summary.reps : 0),
-      parallettesReps: _data.parallettesReps +
-          (summary.mode == PushUpMode.parallettes ? summary.reps : 0),
       sessionsCount: _data.sessionsCount + 1,
       daysActive: daysActive,
       lastActiveDate: todayKey,
@@ -177,7 +175,6 @@ class GameState extends ChangeNotifier {
       bestCombo: data.bestCombo,
       streakDays: data.streakDays,
       floorReps: data.floorReps,
-      parallettesReps: data.parallettesReps,
       sessionsCount: data.sessionsCount,
       daysActive: data.daysActive,
       lastActiveDate: data.lastActiveDate,

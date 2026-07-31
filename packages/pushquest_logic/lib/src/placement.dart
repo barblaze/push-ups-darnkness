@@ -19,13 +19,11 @@ double countAngleFor(PushUpMode mode, CameraPlacement placement) {
   if (placement == CameraPlacement.front) {
     return switch (mode) {
       PushUpMode.floor => 110,
-      PushUpMode.parallettes => 90,
       PushUpMode.free => 115,
     };
   }
   return switch (mode) {
     PushUpMode.floor => 95,
-    PushUpMode.parallettes => 75,
     PushUpMode.free => 110,
   };
 }
@@ -34,13 +32,11 @@ double targetAngleFor(PushUpMode mode, CameraPlacement placement) {
   if (placement == CameraPlacement.front) {
     return switch (mode) {
       PushUpMode.floor => 70,
-      PushUpMode.parallettes => 55,
       PushUpMode.free => 80,
     };
   }
   return switch (mode) {
     PushUpMode.floor => 80,
-    PushUpMode.parallettes => 55,
     PushUpMode.free => 80,
   };
 }

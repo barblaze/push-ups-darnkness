@@ -86,7 +86,7 @@ void main() {
       await state.applyWorkout(
         WorkoutSummary(
           startedAt: DateTime(2026, 7, 31),
-          mode: PushUpMode.parallettes,
+          mode: PushUpMode.floor,
           placement: CameraPlacement.profile,
           reps: 20,
           points: 150,
@@ -96,7 +96,7 @@ void main() {
       );
 
       expect(state.levelInfo.level, greaterThanOrEqualTo(2));
-      expect(state.stats.parallettesReps, 20);
+      expect(state.stats.floorReps, 20);
       expect(state.stats.bestCombo, 10);
 
       final result = await state.applyWorkout(
@@ -117,9 +117,9 @@ void main() {
       final storage = MemoryGameStorage();
       final state = await GameState.load(storage: storage);
 
-      await state.setDefaultMode(PushUpMode.parallettes);
-      expect(state.defaultMode, PushUpMode.parallettes);
-      expect(storage.data.defaultMode, PushUpMode.parallettes);
+      await state.setDefaultMode(PushUpMode.free);
+      expect(state.defaultMode, PushUpMode.free);
+      expect(storage.data.defaultMode, PushUpMode.free);
     });
 
     test('default placement can be changed and persists', () async {
@@ -142,7 +142,6 @@ void main() {
         bestCombo: 8,
         streakDays: 3,
         floorReps: 100,
-        parallettesReps: 23,
         sessionsCount: 4,
         daysActive: 3,
         lastActiveDate: '2026-07-31',
@@ -157,7 +156,7 @@ void main() {
             durationSeconds: 300,
           ),
         ],
-        defaultMode: PushUpMode.parallettes,
+        defaultMode: PushUpMode.free,
         defaultPlacement: CameraPlacement.front,
       );
 
@@ -166,7 +165,7 @@ void main() {
       expect(decoded.totalReps, original.totalReps);
       expect(decoded.totalXp, original.totalXp);
       expect(decoded.streakDays, original.streakDays);
-      expect(decoded.defaultMode, PushUpMode.parallettes);
+      expect(decoded.defaultMode, PushUpMode.free);
       expect(decoded.defaultPlacement, CameraPlacement.front);
       expect(decoded.sessions.length, 1);
       expect(decoded.sessions.first.reps, 25);

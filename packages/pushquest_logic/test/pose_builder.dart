@@ -50,6 +50,21 @@ PoseData frontPose({required double drop, bool hipsVisible = true}) {
   return PoseData(joints);
 }
 
+PoseData highFivePose({required bool handUp}) {
+  final joints = List<Joint>.generate(33, (i) => const Joint(0, 0, 0));
+  const shoulder = Joint(0.3, 0.6);
+  const wristDown = Joint(0.3, 0.75);
+  final wristUp = Joint(0.5, 0.3);
+
+  joints[11] = shoulder;
+  joints[12] = shoulder;
+  joints[13] = Joint(0.3, 0.68);
+  joints[14] = Joint(0.3, 0.68);
+  joints[15] = handUp ? wristUp : wristDown;
+  joints[16] = handUp ? wristUp : wristDown;
+  return PoseData(joints);
+}
+
 PoseData invisible() =>
     PoseData(List<Joint>.generate(33, (i) => const Joint(0, 0, 0)));
 

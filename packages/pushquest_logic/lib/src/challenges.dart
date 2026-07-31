@@ -8,7 +8,6 @@ class PlayerStats {
     this.bestCombo = 0,
     this.streakDays = 0,
     this.floorReps = 0,
-    this.parallettesReps = 0,
     this.sessionsCount = 0,
     this.daysActive = 0,
   });
@@ -19,7 +18,6 @@ class PlayerStats {
   final int bestCombo;
   final int streakDays;
   final int floorReps;
-  final int parallettesReps;
   final int sessionsCount;
   final int daysActive;
 }
@@ -71,8 +69,6 @@ class Achievement {
         return stats.streakDays >= 14;
       case 'floor_100':
         return stats.floorReps >= 100;
-      case 'paralelas_100':
-        return stats.parallettesReps >= 100;
       case 'level_3':
         return Levels.fromXp(stats.totalXp).level >= 3;
       case 'level_5':
@@ -184,12 +180,6 @@ class AchievementCatalog {
       icon: '🤸',
       name: 'Experto en piso',
       description: 'Acumula 100 push-ups en el suelo',
-    ),
-    Achievement(
-      id: 'paralelas_100',
-      icon: '🦾',
-      name: 'Maestro de paralelas',
-      description: 'Acumula 100 push-ups en paralelas',
     ),
     Achievement(
       id: 'level_3',

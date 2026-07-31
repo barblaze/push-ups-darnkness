@@ -51,7 +51,6 @@ class PersistedData {
     required this.bestCombo,
     required this.streakDays,
     required this.floorReps,
-    required this.parallettesReps,
     required this.sessionsCount,
     required this.daysActive,
     required this.lastActiveDate,
@@ -66,7 +65,6 @@ class PersistedData {
   final int bestCombo;
   final int streakDays;
   final int floorReps;
-  final int parallettesReps;
   final int sessionsCount;
   final int daysActive;
   final String? lastActiveDate;
@@ -81,7 +79,6 @@ class PersistedData {
     bestCombo: 0,
     streakDays: 0,
     floorReps: 0,
-    parallettesReps: 0,
     sessionsCount: 0,
     daysActive: 0,
     lastActiveDate: null,
@@ -97,7 +94,6 @@ class PersistedData {
         bestCombo: bestCombo,
         streakDays: streakDays,
         floorReps: floorReps,
-        parallettesReps: parallettesReps,
         sessionsCount: sessionsCount,
         daysActive: daysActive,
       );
@@ -109,7 +105,6 @@ class PersistedData {
         'bestCombo': bestCombo,
         'streakDays': streakDays,
         'floorReps': floorReps,
-        'parallettesReps': parallettesReps,
         'sessionsCount': sessionsCount,
         'daysActive': daysActive,
         'lastActiveDate': lastActiveDate,
@@ -126,7 +121,6 @@ class PersistedData {
       bestCombo: json['bestCombo'] as int? ?? 0,
       streakDays: json['streakDays'] as int? ?? 0,
       floorReps: json['floorReps'] as int? ?? 0,
-      parallettesReps: json['parallettesReps'] as int? ?? 0,
       sessionsCount: json['sessionsCount'] as int? ?? 0,
       daysActive: json['daysActive'] as int? ?? 0,
       lastActiveDate: json['lastActiveDate'] as String?,

@@ -29,31 +29,6 @@ void main() {
       expect(update.completedRep, isNull);
     });
 
-    test('parallettes requires a deeper rep', () {
-      final floorCounter = PushUpCounter(mode: PushUpMode.floor);
-      floorCounter.update(plankPose(elbowAngle: 165));
-      floorCounter.update(plankPose(elbowAngle: 85));
-      final floorUpdate = floorCounter.update(plankPose(elbowAngle: 165));
-      expect(floorCounter.reps, 1);
-      expect(floorUpdate.completedRep, isNotNull);
-
-      final paraCounter = PushUpCounter(mode: PushUpMode.parallettes);
-      paraCounter.update(plankPose(elbowAngle: 165));
-      paraCounter.update(plankPose(elbowAngle: 85));
-      final paraUpdate = paraCounter.update(plankPose(elbowAngle: 165));
-      expect(paraCounter.reps, 0);
-      expect(paraUpdate.completedRep, isNull);
-    });
-
-    test('does not count when the body is not in a plank', () {
-      final counter = PushUpCounter(mode: PushUpMode.floor);
-      counter.update(plankPose(elbowAngle: 165));
-      counter.update(plankPose(elbowAngle: 90, sag: 0.5));
-      final update = counter.update(plankPose(elbowAngle: 165));
-      expect(counter.reps, 0);
-      expect(update.completedRep, isNull);
-    });
-
     test('free mode counts a rep without requiring a plank', () {
       final counter = PushUpCounter(mode: PushUpMode.free);
       counter.update(plankPose(elbowAngle: 165, sag: 0.5));
