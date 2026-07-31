@@ -109,9 +109,9 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
 
       var controller = CameraController(
         camera,
-        ResolutionPreset.low,
+        ResolutionPreset.medium,
         enableAudio: false,
-        imageFormatGroup: ImageFormatGroup.bgra8888,
+        imageFormatGroup: ImageFormatGroup.nv21,
       );
       _cameraController = controller;
       try {
@@ -120,7 +120,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
         await controller.dispose();
         controller = CameraController(
           camera,
-          ResolutionPreset.low,
+          ResolutionPreset.medium,
           enableAudio: false,
           imageFormatGroup: ImageFormatGroup.yuv420,
         );

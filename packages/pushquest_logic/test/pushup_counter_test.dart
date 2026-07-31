@@ -143,30 +143,30 @@ void main() {
       expect(counter.combo, 0);
     });
 
-    test('front placement counts a rep without ankles visible', () {
+    test('front placement counts a rep via shoulder drop', () {
       final counter = PushUpCounter(
         mode: PushUpMode.floor,
         placement: CameraPlacement.front,
       );
-      counter.update(frontPose(elbowAngle: 165));
+      counter.update(frontPose(drop: 1.0));
       expect(counter.phase, CounterPhase.up);
-      counter.update(frontPose(elbowAngle: 100));
+      counter.update(frontPose(drop: 0.3));
       expect(counter.phase, CounterPhase.down);
-      final update = counter.update(frontPose(elbowAngle: 165));
+      final update = counter.update(frontPose(drop: 1.0));
       expect(counter.reps, 1);
       expect(update.completedRep, isNotNull);
       expect(update.bodyVisible, isTrue);
     });
 
-    test('front placement counts a shallower rep (threshold 110)', () {
+    test('front free counts a shallower drop', () {
       final counter = PushUpCounter(
-        mode: PushUpMode.floor,
+        mode: PushUpMode.free,
         placement: CameraPlacement.front,
       );
-      counter.update(frontPose(elbowAngle: 165));
-      counter.update(frontPose(elbowAngle: 105));
+      counter.update(frontPose(drop: 1.0));
+      counter.update(frontPose(drop: 0.5));
       expect(counter.phase, CounterPhase.down);
-      final update = counter.update(frontPose(elbowAngle: 165));
+      final update = counter.update(frontPose(drop: 1.0));
       expect(counter.reps, 1);
       expect(update.completedRep, isNotNull);
     });
@@ -176,14 +176,24 @@ void main() {
         mode: PushUpMode.floor,
         placement: CameraPlacement.front,
       );
-      final update = counter.update(frontPose(elbowAngle: 165));
+      final update = counter.update(frontPose(drop: 1.0));
       expect(update.feedback, isNot(FeedbackKind.hipSag));
       expect(update.sagRatio, 0.0);
     });
 
+    test('front placement requires hips visible', () {
+      final counter = PushUpCounter(
+        mode: PushUpMode.floor,
+        placement: CameraPlacement.front,
+      );
+      final update = counter.update(frontPose(drop: 1.0, hipsVisible: false));
+      expect(update.bodyVisible, isFalse);
+      expect(update.feedback, FeedbackKind.notVisible);
+    });
+
     test('profile placement still requires ankles visible', () {
       final counter = PushUpCounter(mode: PushUpMode.floor);
-      final update = counter.update(frontPose(elbowAngle: 165));
+      final update = counter.update(frontPose(drop: 1.0));
       expect(update.bodyVisible, isFalse);
       expect(update.feedback, FeedbackKind.notVisible);
     });

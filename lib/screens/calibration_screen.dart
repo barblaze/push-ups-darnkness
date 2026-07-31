@@ -86,9 +86,9 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
 
       var controller = CameraController(
         camera,
-        ResolutionPreset.low,
+        ResolutionPreset.medium,
         enableAudio: false,
-        imageFormatGroup: ImageFormatGroup.bgra8888,
+        imageFormatGroup: ImageFormatGroup.nv21,
       );
       _cameraController = controller;
       try {
@@ -97,7 +97,7 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
         await controller.dispose();
         controller = CameraController(
           camera,
-          ResolutionPreset.low,
+          ResolutionPreset.medium,
           enableAudio: false,
           imageFormatGroup: ImageFormatGroup.yuv420,
         );
@@ -246,12 +246,21 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
   Widget _hudPanel() {
     final pose = _lastPose;
     final placement = widget.placement;
-    final analysis = pose == null ? null : analyzeBody(pose, placement: placement);
-    final upAngle = upAngleFor(PushUpMode.floor, placement);
-    final targetAngle = targetAngleFor(PushUpMode.floor, placement);
+    final front = placement == CameraPlacement.front;
+    final analysis =
+        pose == null ? null : analyzeBody(pose, placement: placement);
+    final signal = analysis == null
+        ? 0.0
+        : (front ? analysis.dropRatio : analysis.elbowAngle);
+    final upThreshold = front
+        ? frontUpDropFor(PushUpMode.floor)
+        : upAngleFor(PushUpMode.floor, placement);
+    final targetThreshold = front
+        ? frontTargetDropFor(PushUpMode.floor)
+        : targetAngleFor(PushUpMode.floor, placement);
     final depth = analysis == null
         ? 0.0
-        : ((upAngle - analysis.elbowAngle) / (upAngle - targetAngle))
+        : ((upThreshold - signal) / (upThreshold - targetThreshold))
             .clamp(0.0, 1.0);
 
     return Container(
@@ -288,21 +297,42 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
               style: TextStyle(color: Colors.white70, fontSize: 13),
             )
           else ...[
-            _row('Ángulo codo', '${analysis!.elbowAngle.toStringAsFixed(1)}°'),
+            _row('Señal', front ? 'Caída hombros' : 'Ángulo codo',
+                color: AppColors.accent),
             _row('Profundidad', '${(depth * 100).toStringAsFixed(0)}%'),
-            _row(
-              'Umbral cuenta',
-              '${countAngleFor(PushUpMode.floor, placement).toStringAsFixed(0)}°',
-              color: AppColors.warning,
-            ),
-            _row('Plancha', analysis.plank ? 'SÍ' : 'no',
-                color: analysis.plank ? AppColors.success : AppColors.danger),
-            _row(
-              'Plank ratio',
-              analysis.plankRatio.toStringAsFixed(3),
-              color: analysis.plank ? AppColors.success : AppColors.warning,
-            ),
-            _row('Cadera (sag)', analysis.sagRatio.toStringAsFixed(3)),
+            if (front) ...[
+              _row(
+                'Drop ratio',
+                analysis!.dropRatio.toStringAsFixed(3),
+              ),
+              _row(
+                'Umbral cuenta',
+                '≤ ${frontDownDropFor(PushUpMode.floor).toStringAsFixed(2)}',
+                color: AppColors.warning,
+              ),
+            ] else ...[
+              _row(
+                'Ángulo codo',
+                '${analysis!.elbowAngle.toStringAsFixed(1)}°',
+              ),
+              _row(
+                'Umbral cuenta',
+                '≤ ${countAngleFor(PushUpMode.floor, placement).toStringAsFixed(0)}°',
+                color: AppColors.warning,
+              ),
+              _row('Plancha', analysis.plank ? 'SÍ' : 'no',
+                  color: analysis.plank
+                      ? AppColors.success
+                      : AppColors.danger),
+              _row(
+                'Plank ratio',
+                analysis.plankRatio.toStringAsFixed(3),
+                color: analysis.plank
+                    ? AppColors.success
+                    : AppColors.warning,
+              ),
+              _row('Cadera (sag)', analysis.sagRatio.toStringAsFixed(3)),
+            ],
             const SizedBox(height: 4),
             Text(
               'Visibilidad: '
@@ -314,10 +344,13 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
               style: const TextStyle(color: Colors.white70, fontSize: 12),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Haz 2-3 lagartijas: el esqueleto debe seguirte y el ángulo '
-              'de codo bajar de ~90°. Anota FPS y ángulo al bajar.',
-              style: TextStyle(color: Colors.white54, fontSize: 12, height: 1.4),
+            Text(
+              front
+                  ? 'Haz 2-3 lagartijas: el "Drop ratio" debe bajar de 0.55 y '
+                      'volver a subir de 0.85. Anota FPS y drop ratio abajo.'
+                  : 'Haz 2-3 lagartijas: el esqueleto debe seguirte y el ángulo '
+                      'de codo bajar de ~90°. Anota FPS y ángulo al bajar.',
+              style: const TextStyle(color: Colors.white54, fontSize: 12, height: 1.4),
             ),
           ],
         ],

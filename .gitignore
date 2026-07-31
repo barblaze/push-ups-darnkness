@@ -15,6 +15,10 @@ build/
 /android/local.properties
 /android/captures/
 /android/app/.cxx/
+/android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
+
+# Flutter (generated locally by flutter tool)
+.flutter-plugins-dependencies
 
 # IDE
 .idea/

@@ -109,18 +109,25 @@ class PushUpCounter {
       );
     }
 
-    _liveDepth = ((upAngle - analysis.elbowAngle) / (upAngle - targetAngle))
-        .clamp(0.0, 1.0);
+    final front = placement == CameraPlacement.front;
+    final signal = front ? analysis.dropRatio : analysis.elbowAngle;
+    final downThreshold = front ? frontDownDropFor(mode) : countAngle;
+    final upThreshold = front ? frontUpDropFor(mode) : upAngle;
+    final targetThreshold = front ? frontTargetDropFor(mode) : targetAngle;
+
+    _liveDepth =
+        ((upThreshold - signal) / (upThreshold - targetThreshold))
+            .clamp(0.0, 1.0);
 
     CompletedRep? completedRep;
 
     if (mode == PushUpMode.free) {
       if (_phase == CounterPhase.up) {
-        if (analysis.elbowAngle <= countAngle) {
+        if (signal <= downThreshold) {
           _phase = CounterPhase.down;
         }
       } else if (_phase == CounterPhase.down) {
-        if (analysis.elbowAngle >= upAngle) {
+        if (signal >= upThreshold) {
           _reps += 1;
           completedRep = CompletedRep(
             repNumber: _reps,
@@ -135,21 +142,21 @@ class PushUpCounter {
       }
     } else if (analysis.plank) {
       if (_phase == CounterPhase.up) {
-        if (analysis.elbowAngle <= countAngle) {
+        if (signal <= downThreshold) {
           _phase = CounterPhase.down;
-          _minElbow = analysis.elbowAngle;
+          _minElbow = signal;
           _minStraightness = straightnessFromSag(analysis.sagRatio);
         }
       } else if (_phase == CounterPhase.down) {
-        _minElbow = math.min(_minElbow, analysis.elbowAngle);
+        _minElbow = math.min(_minElbow, signal);
         _minStraightness =
             math.min(_minStraightness, straightnessFromSag(analysis.sagRatio));
-        if (analysis.elbowAngle >= upAngle) {
+        if (signal >= upThreshold) {
           _reps += 1;
           final quality = evaluateQuality(
             minElbowAngle: _minElbow,
-            upAngle: upAngle,
-            targetAngle: targetAngle,
+            upAngle: upThreshold,
+            targetAngle: targetThreshold,
             minStraightness: _minStraightness,
           );
           if (quality.isGood) {

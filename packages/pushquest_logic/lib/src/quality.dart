@@ -11,6 +11,7 @@ class BodyAnalysis {
     required this.sagRatio,
     required this.plank,
     required this.plankRatio,
+    required this.dropRatio,
   });
 
   final bool bodyVisible;
@@ -18,6 +19,10 @@ class BodyAnalysis {
   final double sagRatio;
   final bool plank;
   final double plankRatio;
+
+  /// Vista frontal: qué tan bajaron los hombros hacia las muñecas,
+  /// normalizado por el torso (1 = brazos estirados, ~0 = pecho al suelo).
+  final double dropRatio;
 }
 
 class Quality {
@@ -64,52 +69,54 @@ BodyAnalysis analyzeBody(
   final hips = _visible(pose.leftHip, pose.rightHip);
   final ankles = _visible(pose.leftAnkle, pose.rightAnkle);
 
-  final front = placement == CameraPlacement.front;
-  final needFullBody = !front;
+  const notVisible = BodyAnalysis(
+    bodyVisible: false,
+    elbowAngle: 0,
+    sagRatio: 0,
+    plank: false,
+    plankRatio: 0,
+    dropRatio: 0,
+  );
 
-  if (shoulders == null || elbows == null || wrists == null) {
-    return const BodyAnalysis(
-      bodyVisible: false,
-      elbowAngle: 0,
+  final front = placement == CameraPlacement.front;
+
+  if (front) {
+    if (shoulders == null || wrists == null || hips == null) {
+      return notVisible;
+    }
+    final torso = hips.y - shoulders.y;
+    if (torso.abs() <= 0.001) return notVisible;
+    final dropRatio = (wrists.y - shoulders.y) / torso;
+    return BodyAnalysis(
+      bodyVisible: true,
+      elbowAngle: elbows == null ? 180 : angleAt(shoulders, elbows, wrists),
       sagRatio: 0,
-      plank: false,
+      plank: true,
       plankRatio: 0,
+      dropRatio: dropRatio,
     );
   }
 
-  if (needFullBody && (hips == null || ankles == null)) {
-    return const BodyAnalysis(
-      bodyVisible: false,
-      elbowAngle: 0,
-      sagRatio: 0,
-      plank: false,
-      plankRatio: 0,
-    );
+  if (shoulders == null || elbows == null || wrists == null) {
+    return notVisible;
+  }
+
+  if (hips == null || ankles == null) {
+    return notVisible;
   }
 
   final elbowAngle = angleAt(shoulders, elbows, wrists);
 
-  final torsoLen = ankles != null
-      ? distance(shoulders, ankles)
-      : (hips != null ? distance(shoulders, hips) : 0);
+  final torsoLen = distance(shoulders, ankles);
   if (torsoLen == 0) {
-    return const BodyAnalysis(
-      bodyVisible: false,
-      elbowAngle: 0,
-      sagRatio: 0,
-      plank: false,
-      plankRatio: 0,
-    );
+    return notVisible;
   }
 
-  final plankRatio =
-      hips == null ? 0.0 : (shoulders.y - hips.y).abs() / torsoLen;
-  final plank = front || hips == null ? true : plankRatio <= 0.18;
+  final plankRatio = (shoulders.y - hips.y).abs() / torsoLen;
+  final plank = plankRatio <= 0.18;
 
-  final deviation = ankles == null || hips == null
-      ? 0.0
-      : signedDistanceToLine(hips, shoulders, ankles);
-  final orientation = ankles == null || shoulders.x < ankles.x ? 1.0 : -1.0;
+  final deviation = signedDistanceToLine(hips, shoulders, ankles);
+  final orientation = shoulders.x < ankles.x ? 1.0 : -1.0;
   final sagRatio = deviation * orientation / torsoLen;
 
   return BodyAnalysis(
@@ -118,6 +125,7 @@ BodyAnalysis analyzeBody(
     sagRatio: sagRatio,
     plank: plank,
     plankRatio: plankRatio,
+    dropRatio: 0,
   );
 }
 

@@ -44,3 +44,15 @@ double targetAngleFor(PushUpMode mode, CameraPlacement placement) {
     PushUpMode.free => 80,
   };
 }
+
+/// Vista frontal: la señal de conteo es la caída de los hombros hacia las
+/// muñecas (dropRatio), no el ángulo de codo, porque el codo se dobla en el
+/// plano perpendicular a la cámara y su proyección apenas cambia.
+double frontDownDropFor(PushUpMode mode) =>
+    mode == PushUpMode.free ? 0.6 : 0.55;
+
+double frontUpDropFor(PushUpMode mode) =>
+    mode == PushUpMode.free ? 0.8 : 0.85;
+
+double frontTargetDropFor(PushUpMode mode) =>
+    mode == PushUpMode.free ? 0.4 : 0.35;
