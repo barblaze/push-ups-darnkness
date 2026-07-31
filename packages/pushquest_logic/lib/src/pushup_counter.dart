@@ -108,7 +108,26 @@ class PushUpCounter {
 
     CompletedRep? completedRep;
 
-    if (analysis.plank) {
+    if (mode == PushUpMode.free) {
+      if (_phase == CounterPhase.up) {
+        if (analysis.elbowAngle <= countAngle) {
+          _phase = CounterPhase.down;
+        }
+      } else if (_phase == CounterPhase.down) {
+        if (analysis.elbowAngle >= upAngle) {
+          _reps += 1;
+          completedRep = CompletedRep(
+            repNumber: _reps,
+            depthRatio: _liveDepth,
+            straightness: 1,
+            isGood: true,
+            points: 0,
+            combo: 0,
+          );
+          _phase = CounterPhase.up;
+        }
+      }
+    } else if (analysis.plank) {
       if (_phase == CounterPhase.up) {
         if (analysis.elbowAngle <= countAngle) {
           _phase = CounterPhase.down;
@@ -151,7 +170,9 @@ class PushUpCounter {
       _minStraightness = 1;
     }
 
-    final feedback = _pickFeedback(analysis);
+    final feedback = mode == PushUpMode.free
+        ? FeedbackKind.good
+        : _pickFeedback(analysis);
     return FrameUpdate(
       phase: _phase,
       reps: _reps,

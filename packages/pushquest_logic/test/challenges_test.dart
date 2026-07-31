@@ -48,31 +48,28 @@ void main() {
     });
 
     test('reps achievements threshold', () {
-      const stats = PlayerStats(totalReps: 1000);
-      expect(AchievementCatalog.byId('reps_100').isUnlocked(stats), isTrue);
-      expect(AchievementCatalog.byId('reps_1000').isUnlocked(stats), isTrue);
-      expect(AchievementCatalog.byId('reps_2500').isUnlocked(stats), isFalse);
+      const stats = PlayerStats(totalReps: 100);
+      expect(AchievementCatalog.byId('reps_25').isUnlocked(stats), isTrue);
+      expect(AchievementCatalog.byId('reps_50').isUnlocked(stats), isTrue);
+      expect(AchievementCatalog.byId('reps_150').isUnlocked(stats), isFalse);
     });
 
     test('streak achievements threshold', () {
       const stats = PlayerStats(streakDays: 7);
       expect(AchievementCatalog.byId('streak_3').isUnlocked(stats), isTrue);
       expect(AchievementCatalog.byId('streak_7').isUnlocked(stats), isTrue);
-      expect(AchievementCatalog.byId('streak_30').isUnlocked(stats), isFalse);
+      expect(AchievementCatalog.byId('streak_14').isUnlocked(stats), isFalse);
     });
 
     test('level achievements derive from xp', () {
       final stats = PlayerStats(totalXp: 500);
       expect(Levels.fromXp(500).level, 3);
+      expect(AchievementCatalog.byId('level_3').isUnlocked(stats), isTrue);
       expect(AchievementCatalog.byId('level_5').isUnlocked(stats), isFalse);
       final stats5 = PlayerStats(totalXp: Levels.totalXpForLevel(5));
       expect(
         AchievementCatalog.byId('level_5').isUnlocked(stats5),
         isTrue,
-      );
-      expect(
-        AchievementCatalog.byId('level_10').isUnlocked(stats5),
-        isFalse,
       );
     });
 
@@ -87,17 +84,17 @@ void main() {
       for (var day = 1; day <= 28; day++) {
         for (var month = 1; month <= 12; month++) {
           final mission = DailyMission.forDay(DateTime(2026, month, day));
-          expect(mission.targetReps, inInclusiveRange(10, 48));
+          expect(mission.targetReps, inInclusiveRange(6, 24));
         }
       }
     });
 
     test('completion check', () {
       final mission = DailyMission.forDay(DateTime(2026, 7, 31));
-      expect(mission.targetReps, 26);
+      expect(mission.targetReps, 22);
       expect(mission.isComplete(10), isFalse);
-      expect(mission.isComplete(26), isTrue);
-      expect(mission.progress(13), closeTo(0.5, 1e-9));
+      expect(mission.isComplete(22), isTrue);
+      expect(mission.progress(11), closeTo(0.5, 1e-9));
     });
   });
 }

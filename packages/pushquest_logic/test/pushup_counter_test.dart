@@ -54,6 +54,29 @@ void main() {
       expect(update.completedRep, isNull);
     });
 
+    test('free mode counts a rep without requiring a plank', () {
+      final counter = PushUpCounter(mode: PushUpMode.free);
+      counter.update(plankPose(elbowAngle: 165, sag: 0.5));
+      counter.update(plankPose(elbowAngle: 100, sag: 0.5));
+      expect(counter.phase, CounterPhase.down);
+      final update = counter.update(plankPose(elbowAngle: 165, sag: 0.5));
+      expect(counter.reps, 1);
+      expect(update.completedRep, isNotNull);
+      expect(update.completedRep!.points, 0);
+      expect(update.completedRep!.combo, 0);
+      expect(update.completedRep!.isGood, isTrue);
+    });
+
+    test('free mode counts shallower reps', () {
+      final counter = PushUpCounter(mode: PushUpMode.free);
+      counter.update(plankPose(elbowAngle: 165));
+      counter.update(plankPose(elbowAngle: 105));
+      expect(counter.phase, CounterPhase.down);
+      final update = counter.update(plankPose(elbowAngle: 165));
+      expect(counter.reps, 1);
+      expect(update.completedRep, isNotNull);
+    });
+
     test('a sagging rep still counts but breaks the combo', () {
       final counter = PushUpCounter(mode: PushUpMode.floor);
       counter.update(plankPose(elbowAngle: 165));

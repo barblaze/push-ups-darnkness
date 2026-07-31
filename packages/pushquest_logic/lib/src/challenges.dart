@@ -41,46 +41,46 @@ class Achievement {
     switch (id) {
       case 'first_workout':
         return stats.sessionsCount >= 1;
+      case 'reps_25':
+        return stats.totalReps >= 25;
       case 'reps_50':
         return stats.totalReps >= 50;
-      case 'reps_100':
-        return stats.totalReps >= 100;
-      case 'reps_500':
-        return stats.totalReps >= 500;
-      case 'reps_1000':
-        return stats.totalReps >= 1000;
-      case 'reps_2500':
-        return stats.totalReps >= 2500;
-      case 'session_25':
-        return stats.bestSessionReps >= 25;
-      case 'session_50':
-        return stats.bestSessionReps >= 50;
-      case 'session_100':
-        return stats.bestSessionReps >= 100;
+      case 'reps_150':
+        return stats.totalReps >= 150;
+      case 'reps_300':
+        return stats.totalReps >= 300;
+      case 'reps_600':
+        return stats.totalReps >= 600;
+      case 'session_10':
+        return stats.bestSessionReps >= 10;
+      case 'session_20':
+        return stats.bestSessionReps >= 20;
+      case 'session_40':
+        return stats.bestSessionReps >= 40;
+      case 'combo_3':
+        return stats.bestCombo >= 3;
       case 'combo_5':
         return stats.bestCombo >= 5;
       case 'combo_10':
         return stats.bestCombo >= 10;
-      case 'combo_20':
-        return stats.bestCombo >= 20;
       case 'streak_3':
         return stats.streakDays >= 3;
       case 'streak_7':
         return stats.streakDays >= 7;
-      case 'streak_30':
-        return stats.streakDays >= 30;
-      case 'floor_200':
-        return stats.floorReps >= 200;
-      case 'paralelas_200':
-        return stats.parallettesReps >= 200;
+      case 'streak_14':
+        return stats.streakDays >= 14;
+      case 'floor_100':
+        return stats.floorReps >= 100;
+      case 'paralelas_100':
+        return stats.parallettesReps >= 100;
+      case 'level_3':
+        return Levels.fromXp(stats.totalXp).level >= 3;
       case 'level_5':
         return Levels.fromXp(stats.totalXp).level >= 5;
-      case 'level_10':
-        return Levels.fromXp(stats.totalXp).level >= 10;
+      case 'active_3':
+        return stats.daysActive >= 3;
       case 'active_7':
         return stats.daysActive >= 7;
-      case 'active_30':
-        return stats.daysActive >= 30;
       default:
         return false;
     }
@@ -96,52 +96,58 @@ class AchievementCatalog {
       description: 'Completa tu primer entrenamiento',
     ),
     Achievement(
-      id: 'reps_50',
+      id: 'reps_25',
       icon: '🏃',
       name: 'Calentando',
+      description: 'Acumula 25 push-ups en total',
+    ),
+    Achievement(
+      id: 'reps_50',
+      icon: '🔥',
+      name: 'Primer reto',
       description: 'Acumula 50 push-ups en total',
     ),
     Achievement(
-      id: 'reps_100',
-      icon: '🔥',
-      name: 'Cien arriba',
-      description: 'Acumula 100 push-ups en total',
-    ),
-    Achievement(
-      id: 'reps_500',
+      id: 'reps_150',
       icon: '⚡',
-      name: 'Media mil',
-      description: 'Acumula 500 push-ups en total',
+      name: 'Ritmo constante',
+      description: 'Acumula 150 push-ups en total',
     ),
     Achievement(
-      id: 'reps_1000',
+      id: 'reps_300',
       icon: '🚀',
-      name: 'Rocket',
-      description: 'Acumula 1.000 push-ups en total',
+      name: 'Sin freno',
+      description: 'Acumula 300 push-ups en total',
     ),
     Achievement(
-      id: 'reps_2500',
+      id: 'reps_600',
       icon: '🏆',
-      name: 'Máquina',
-      description: 'Acumula 2.500 push-ups en total',
+      name: 'Imparable',
+      description: 'Acumula 600 push-ups en total',
     ),
     Achievement(
-      id: 'session_25',
+      id: 'session_10',
       icon: '💥',
       name: 'Racha de fuerza',
-      description: 'Haz 25 push-ups en una sesión',
+      description: 'Haz 10 push-ups en una sesión',
     ),
     Achievement(
-      id: 'session_50',
+      id: 'session_20',
       icon: '🌋',
       name: 'Explosivo',
-      description: 'Haz 50 push-ups en una sesión',
+      description: 'Haz 20 push-ups en una sesión',
     ),
     Achievement(
-      id: 'session_100',
+      id: 'session_40',
       icon: '👑',
-      name: 'Centurión',
-      description: 'Haz 100 push-ups en una sesión',
+      name: 'Fortaleza',
+      description: 'Haz 40 push-ups en una sesión',
+    ),
+    Achievement(
+      id: 'combo_3',
+      icon: '🔗',
+      name: 'Combo x3',
+      description: 'Encadena 3 push-ups perfectos',
     ),
     Achievement(
       id: 'combo_5',
@@ -156,12 +162,6 @@ class AchievementCatalog {
       description: 'Encadena 10 push-ups perfectos',
     ),
     Achievement(
-      id: 'combo_20',
-      icon: '🔗',
-      name: 'Combo x20',
-      description: 'Encadena 20 push-ups perfectos',
-    ),
-    Achievement(
       id: 'streak_3',
       icon: '📅',
       name: 'Constancia',
@@ -174,46 +174,46 @@ class AchievementCatalog {
       description: 'Entrena 7 días seguidos',
     ),
     Achievement(
-      id: 'streak_30',
+      id: 'streak_14',
       icon: '🔥',
-      name: 'Mes ardiente',
-      description: 'Entrena 30 días seguidos',
+      name: 'Quincena',
+      description: 'Entrena 14 días seguidos',
     ),
     Achievement(
-      id: 'floor_200',
+      id: 'floor_100',
       icon: '🤸',
       name: 'Experto en piso',
-      description: 'Acumula 200 push-ups en el suelo',
+      description: 'Acumula 100 push-ups en el suelo',
     ),
     Achievement(
-      id: 'paralelas_200',
+      id: 'paralelas_100',
       icon: '🦾',
       name: 'Maestro de paralelas',
-      description: 'Acumula 200 push-ups en paralelas',
+      description: 'Acumula 100 push-ups en paralelas',
+    ),
+    Achievement(
+      id: 'level_3',
+      icon: '⭐',
+      name: 'Nivel 3',
+      description: 'Alcanza el nivel 3',
     ),
     Achievement(
       id: 'level_5',
-      icon: '⭐',
+      icon: '🌟',
       name: 'Nivel 5',
       description: 'Alcanza el nivel 5',
     ),
     Achievement(
-      id: 'level_10',
-      icon: '🌟',
-      name: 'Nivel 10',
-      description: 'Alcanza el nivel 10',
+      id: 'active_3',
+      icon: '🗓️',
+      name: 'Primeros pasos',
+      description: 'Entrena en 3 días distintos',
     ),
     Achievement(
       id: 'active_7',
       icon: '🗓️',
       name: 'Semana activa',
       description: 'Entrena en 7 días distintos',
-    ),
-    Achievement(
-      id: 'active_30',
-      icon: '🗓️',
-      name: 'Mes activo',
-      description: 'Entrena en 30 días distintos',
     ),
   ];
 
@@ -228,8 +228,11 @@ class DailyMission {
   final int targetReps;
 
   factory DailyMission.forDay(DateTime day) {
-    final target = 10 + ((day.day * 3 + day.month * 5) % 20) * 2;
-    return DailyMission(day: DateTime(day.year, day.month, day.day), targetReps: target);
+    final target = 6 + ((day.day * 3 + day.month * 5) % 10) * 2;
+    return DailyMission(
+      day: DateTime(day.year, day.month, day.day),
+      targetReps: target,
+    );
   }
 
   bool isComplete(int todayReps) => todayReps >= targetReps;

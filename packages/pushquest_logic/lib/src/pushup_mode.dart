@@ -1,18 +1,35 @@
-enum PushUpMode { floor, parallettes }
+enum PushUpMode { floor, parallettes, free }
 
 extension PushUpModeDetails on PushUpMode {
-  String get label => this == PushUpMode.floor ? 'Piso' : 'Paralelas';
+  String get label => switch (this) {
+        PushUpMode.floor => 'Piso',
+        PushUpMode.parallettes => 'Paralelas',
+        PushUpMode.free => 'Libre',
+      };
 
-  String get icon => this == PushUpMode.floor ? '🤸' : '🦾';
+  String get icon => switch (this) {
+        PushUpMode.floor => '🤸',
+        PushUpMode.parallettes => '🦾',
+        PushUpMode.free => '🏋️',
+      };
 
-  String get positionHint =>
-      this == PushUpMode.floor
-          ? 'Colócate en el suelo y pon la cámara de lado'
-          : 'Manos sobre las paralelas, cámara de lado';
+  String get positionHint => switch (this) {
+        PushUpMode.floor => 'Colócate en el suelo y pon la cámara de lado',
+        PushUpMode.parallettes => 'Manos sobre las paralelas, cámara de lado',
+        PushUpMode.free => 'Haz push-ups a tu ritmo: solo contamos tus reps',
+      };
 
   double get upAngle => 160;
 
-  double get countAngle => this == PushUpMode.floor ? 95 : 75;
+  double get countAngle => switch (this) {
+        PushUpMode.floor => 95,
+        PushUpMode.parallettes => 75,
+        PushUpMode.free => 110,
+      };
 
-  double get targetAngle => this == PushUpMode.floor ? 80 : 55;
+  double get targetAngle => switch (this) {
+        PushUpMode.floor => 80,
+        PushUpMode.parallettes => 55,
+        PushUpMode.free => 80,
+      };
 }

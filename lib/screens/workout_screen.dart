@@ -223,7 +223,9 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
         backgroundColor: AppColors.surface,
         title: const Text('¿Terminar sesión?'),
         content: Text(
-          '${_counter.reps} reps · $_totalPoints puntos',
+          widget.mode == PushUpMode.free
+              ? '${_counter.reps} reps contadas'
+              : '${_counter.reps} reps · $_totalPoints puntos',
           style: const TextStyle(color: AppColors.textSecondary),
         ),
         actions: [
@@ -343,8 +345,10 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
             '${(_elapsedSeconds ~/ 60).toString().padLeft(2, '0')}:'
                 '${(_elapsedSeconds % 60).toString().padLeft(2, '0')}',
           ),
-          const SizedBox(width: 8),
-          _hudChip('⚡', '$_totalPoints'),
+          if (widget.mode != PushUpMode.free) ...[
+            const SizedBox(width: 8),
+            _hudChip('⚡', '$_totalPoints'),
+          ],
           const SizedBox(width: 8),
           _hudChip(widget.mode.icon, widget.mode.label),
         ],
@@ -426,7 +430,10 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   }
 
   Widget _feedbackRow(FrameUpdate update) {
-    final (message, color) = feedbackFor(update);
+    final (message, color) = widget.mode == PushUpMode.free &&
+            update.feedback != FeedbackKind.notVisible
+        ? ('Sigue contando', AppColors.accent)
+        : feedbackFor(update);
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [

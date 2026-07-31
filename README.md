@@ -4,7 +4,8 @@ Push-ups como un juego: la app usa la cámara y detección de pose en tiempo rea
 (MediaPipe, 100% en el dispositivo) para contar tus push-ups y evaluar tu forma,
 con puntos, rachas, niveles, avatar, misión diaria, logros y estadísticas.
 
-- Modos: piso y paralelas (umbrales distintos por profundidad de bajada).
+- Modos: piso, paralelas (umbrales distintos por profundidad de bajada) y
+  libre (solo cuenta tus reps, sin reglas ni puntuación).
 - Feedback en vivo: profundidad, cadera baja/elevada, plancha, no visibilidad.
 - Reps "perfectas" dan más puntos y mantienen el combo; una mala lo rompe.
 - Objetivo diario determinista (10-48 reps) con bonus de +50 XP.
@@ -42,7 +43,7 @@ No necesitas toolchain local de Flutter/Android:
 ## Uso
 
 1. Abre PushQuest y dale permiso de cámara.
-2. Elige modo **Piso** o **Paralelas**.
+2. Elige modo **Piso**, **Paralelas** o **Libre**.
 3. Coloca el teléfono de lado, con la cámara apuntando a tu perfil completo.
 4. Toca **ENTRENAR** y haz push-ups: cuenta reps, evalúa tu forma y acumula
    puntos.

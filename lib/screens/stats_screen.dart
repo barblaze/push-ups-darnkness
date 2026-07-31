@@ -199,17 +199,21 @@ class StatsScreen extends StatelessWidget {
                             if (index < 0 || index >= recent.length) {
                               return const SizedBox.shrink();
                             }
-                            final m = recent[index].mode;
-                            return Padding(
-                              padding: const EdgeInsets.only(top: 6),
-                              child: Text(
-                                m == PushUpMode.floor ? 'p' : 'P',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: AppColors.textSecondary,
+                              final m = recent[index].mode;
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: Text(
+                                  switch (m) {
+                                    PushUpMode.floor => 'p',
+                                    PushUpMode.parallettes => 'P',
+                                    PushUpMode.free => 'L',
+                                  },
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.textSecondary,
+                                  ),
                                 ),
-                              ),
-                            );
+                              );
                           },
                         ),
                       ),
@@ -221,9 +225,11 @@ class StatsScreen extends StatelessWidget {
                           barRods: [
                             BarChartRodData(
                               toY: recent[i].reps.toDouble(),
-                              color: recent[i].mode == PushUpMode.floor
-                                  ? AppColors.primary
-                                  : AppColors.accent,
+                              color: switch (recent[i].mode) {
+                                PushUpMode.floor => AppColors.primary,
+                                PushUpMode.parallettes => AppColors.accent,
+                                PushUpMode.free => AppColors.success,
+                              },
                               width: 12,
                               borderRadius: BorderRadius.circular(4),
                             ),
