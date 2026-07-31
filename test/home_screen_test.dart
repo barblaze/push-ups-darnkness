@@ -26,6 +26,8 @@ void main() {
     await tester.pumpWidget(PushQuestApp(state: state));
     await tester.pumpAndSettle();
 
+    await tester.ensureVisible(find.text('Desafíos'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Desafíos'));
     await tester.pumpAndSettle();
 
