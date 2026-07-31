@@ -48,6 +48,13 @@ No necesitas toolchain local de Flutter/Android:
 4. Toca **ENTRENAR** y haz push-ups: cuenta reps, evalúa tu forma y acumula
    puntos.
 
+## Probar la detección
+
+Desde el inicio toca **Probar detección** para ver en vivo el esqueleto y un HUD
+de diagnóstico (FPS, ms por frame, ángulo de codo, profundidad, plancha y
+visibilidad de los puntos clave). Útil para verificar la cámara y calibrar los
+umbrales de conteo.
+
 ## Desarrollo local
 
 La lógica se valida con el SDK de Dart (sin Flutter):

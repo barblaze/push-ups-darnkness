@@ -100,14 +100,26 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
       }
       _mirrorPreview = camera.lensDirection == CameraLensDirection.front;
 
-      final controller = CameraController(
+      var controller = CameraController(
         camera,
-        ResolutionPreset.medium,
+        ResolutionPreset.low,
         enableAudio: false,
-        imageFormatGroup: ImageFormatGroup.yuv420,
+        imageFormatGroup: ImageFormatGroup.bgra8888,
       );
       _cameraController = controller;
-      await controller.initialize();
+      try {
+        await controller.initialize();
+      } catch (_) {
+        await controller.dispose();
+        controller = CameraController(
+          camera,
+          ResolutionPreset.low,
+          enableAudio: false,
+          imageFormatGroup: ImageFormatGroup.yuv420,
+        );
+        _cameraController = controller;
+        await controller.initialize();
+      }
 
       await _poseDetector.initialize();
 

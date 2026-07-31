@@ -4,6 +4,7 @@ import 'package:pushquest_logic/pushquest_logic.dart';
 import '../state/game_state.dart';
 import '../theme/app_theme.dart';
 import 'challenges_screen.dart';
+import 'calibration_screen.dart';
 import 'stats_screen.dart';
 import 'workout_screen.dart';
 
@@ -38,6 +39,16 @@ class HomeScreen extends StatelessWidget {
                   FilledButton(
                     onPressed: () => _startWorkout(context),
                     child: const Text('ENTRENAR'),
+                  ),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const CalibrationScreen(),
+                      ),
+                    ),
+                    icon: const Icon(Icons.science_outlined),
+                    label: const Text('Probar detección'),
                   ),
                   const SizedBox(height: 20),
                   _navRow(context),
