@@ -453,8 +453,8 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
     final color = depth >= 0.9
         ? AppColors.success
         : depth >= 0.5
-        ? AppColors.primary
-        : AppColors.danger;
+            ? AppColors.primary
+            : AppColors.danger;
     return ClipRRect(
       borderRadius: BorderRadius.circular(6),
       child: LinearProgressIndicator(

@@ -72,8 +72,7 @@ class GameState extends ChangeNotifier {
     final mission = DailyMission.forDay(today);
     final beforeReps = todayReps;
 
-    final completedMissionNow =
-        !mission.isComplete(beforeReps) &&
+    final completedMissionNow = !mission.isComplete(beforeReps) &&
         mission.isComplete(beforeReps + summary.reps);
     final bonus = completedMissionNow
         ? RepScoring.missionBonus(mission.targetReps, beforeReps + summary.reps)
@@ -121,11 +120,9 @@ class GameState extends ChangeNotifier {
           ? _data.bestCombo
           : summary.bestCombo,
       streakDays: streak,
-      floorReps:
-          _data.floorReps +
+      floorReps: _data.floorReps +
           (summary.mode == PushUpMode.floor ? summary.reps : 0),
-      parallettesReps:
-          _data.parallettesReps +
+      parallettesReps: _data.parallettesReps +
           (summary.mode == PushUpMode.parallettes ? summary.reps : 0),
       sessionsCount: _data.sessionsCount + 1,
       daysActive: daysActive,
@@ -153,8 +150,7 @@ class GameState extends ChangeNotifier {
 
   Future<void> _persist() => _storage.save(_data);
 
-  static String _dateKey(DateTime d) =>
-      '${d.year.toString().padLeft(4, '0')}-'
+  static String _dateKey(DateTime d) => '${d.year.toString().padLeft(4, '0')}-'
       '${d.month.toString().padLeft(2, '0')}-'
       '${d.day.toString().padLeft(2, '0')}';
 

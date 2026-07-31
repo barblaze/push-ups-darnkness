@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'storage.dart';
+import 'session.dart';
 
 abstract class GameStorage {
   Future<PersistedData> load();

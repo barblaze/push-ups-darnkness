@@ -1,3 +1,4 @@
+import 'package:pushquest/game/session.dart';
 import 'package:pushquest/game/storage.dart';
 
 class MemoryGameStorage implements GameStorage {

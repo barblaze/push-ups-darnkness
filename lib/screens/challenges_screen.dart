@@ -61,9 +61,8 @@ class ChallengesScreen extends StatelessWidget {
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w800,
-                                color: done
-                                    ? AppColors.success
-                                    : AppColors.accent,
+                                color:
+                                    done ? AppColors.success : AppColors.accent,
                               ),
                             ),
                           ],

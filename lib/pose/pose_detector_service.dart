@@ -35,9 +35,8 @@ class PoseDetectorService {
           },
         )
         .toList();
-    final format = image.format.group == ImageFormatGroup.yuv420
-        ? 'yuv420'
-        : 'bgra8888';
+    final format =
+        image.format.group == ImageFormatGroup.yuv420 ? 'yuv420' : 'bgra8888';
 
     final result = await detector.processFrame(
       planes: planes,
