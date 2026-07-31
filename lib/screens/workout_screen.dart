@@ -93,7 +93,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
       CameraDescription camera;
       try {
         camera = cameras.firstWhere(
-          (c) => c.lensDirection == CameraLensDirection.back,
+          (c) => c.lensDirection == CameraLensDirection.front,
         );
       } catch (_) {
         camera = cameras.first;

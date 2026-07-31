@@ -4,7 +4,6 @@ import 'package:pushquest_logic/pushquest_logic.dart';
 import '../state/game_state.dart';
 import '../theme/app_theme.dart';
 import 'challenges_screen.dart';
-import 'settings_screen.dart';
 import 'stats_screen.dart';
 import 'workout_screen.dart';
 
@@ -271,16 +270,6 @@ class HomeScreen extends StatelessWidget {
             label: 'Estadísticas',
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => StatsScreen(state: state)),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _navCard(
-            icon: Icons.settings,
-            label: 'Ajustes',
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => SettingsScreen(state: state)),
             ),
           ),
         ),
