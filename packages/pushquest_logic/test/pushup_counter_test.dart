@@ -166,6 +166,46 @@ void main() {
       expect(update.feedback, FeedbackKind.notVisible);
     });
 
+    test('front counts exactly one rep per down-up cycle with moving hips', () {
+      final counter = PushUpCounter(
+        mode: PushUpMode.floor,
+        placement: CameraPlacement.front,
+      );
+      for (final depth in [0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 0.8, 0.6, 0.4, 0.2, 0.0]) {
+        counter.update(frontPoseReal(depth: depth));
+      }
+      expect(counter.reps, 1);
+      expect(counter.phase, CounterPhase.up);
+    });
+
+    test('front deep bottom with hips above shoulders does not double count', () {
+      final counter = PushUpCounter(
+        mode: PushUpMode.floor,
+        placement: CameraPlacement.front,
+      );
+      counter.update(frontPose(drop: 1.0));
+      expect(counter.phase, CounterPhase.up);
+      counter.update(frontBottomPose());
+      expect(counter.phase, CounterPhase.down);
+      final update = counter.update(frontBottomPose());
+      expect(counter.reps, 0);
+      expect(update.completedRep, isNull);
+      final done = counter.update(frontPose(drop: 1.0));
+      expect(counter.reps, 1);
+      expect(done.completedRep, isNotNull);
+    });
+
+    test('front shallow rep with moving hips does not count', () {
+      final counter = PushUpCounter(
+        mode: PushUpMode.floor,
+        placement: CameraPlacement.front,
+      );
+      counter.update(frontPoseReal(depth: 0.0));
+      counter.update(frontPoseReal(depth: 0.2));
+      counter.update(frontPoseReal(depth: 0.0));
+      expect(counter.reps, 0);
+    });
+
     test('profile placement still requires ankles visible', () {
       final counter = PushUpCounter(mode: PushUpMode.floor);
       final update = counter.update(frontPose(drop: 1.0));

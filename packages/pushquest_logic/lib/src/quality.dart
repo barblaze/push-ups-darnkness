@@ -84,8 +84,11 @@ BodyAnalysis analyzeBody(
     if (shoulders == null || wrists == null || hips == null) {
       return notVisible;
     }
-    final torso = hips.y - shoulders.y;
-    if (torso.abs() <= 0.001) return notVisible;
+    // La distancia euclídea hombros→caderas es casi constante durante la rep;
+    // la altura vertical (hips.y - shoulders.y) colapsa a ~0 e incluso se vuelve
+    // negativa al fondo, lo que hacía la señal inestable y doblaba el conteo.
+    final torso = distance(shoulders, hips);
+    if (torso <= 0.001) return notVisible;
     final dropRatio = (wrists.y - shoulders.y) / torso;
     return BodyAnalysis(
       bodyVisible: true,

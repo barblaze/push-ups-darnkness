@@ -50,6 +50,46 @@ PoseData frontPose({required double drop, bool hipsVisible = true}) {
   return PoseData(joints);
 }
 
+/// Vista frontal con geometría realista: las caderas también bajan al flexionar
+/// los codos (el builder [frontPose] las mantenía fijas y enmascaraba la
+/// inestabilidad de la señal).
+PoseData frontPoseReal({required double depth}) {
+  final joints = List<Joint>.generate(33, (i) => const Joint(0, 0, 0));
+  const wrist = Joint(0.3, 0.75);
+  final shoulder = Joint(0.3, 0.45 + depth * 0.30);
+  final hip = Joint(0.3, 0.70 + depth * 0.04);
+
+  joints[11] = shoulder;
+  joints[12] = shoulder;
+  joints[13] = Joint(0.3, 0.62);
+  joints[14] = Joint(0.3, 0.62);
+  joints[15] = wrist;
+  joints[16] = wrist;
+  joints[23] = hip;
+  joints[24] = hip;
+  return PoseData(joints);
+}
+
+/// Fondo profundo que disparaba el doble conteo con la antigua normalización:
+/// hombros por debajo de las muñecas y caderas apenas por encima de los hombros
+/// (la altura vertical hombros→caderas era negativa y casi cero).
+PoseData frontBottomPose() {
+  final joints = List<Joint>.generate(33, (i) => const Joint(0, 0, 0));
+  const shoulder = Joint(0.3, 0.78);
+  const wrist = Joint(0.3, 0.75);
+  const hip = Joint(0.3, 0.77);
+
+  joints[11] = shoulder;
+  joints[12] = shoulder;
+  joints[13] = Joint(0.3, 0.62);
+  joints[14] = Joint(0.3, 0.62);
+  joints[15] = wrist;
+  joints[16] = wrist;
+  joints[23] = hip;
+  joints[24] = hip;
+  return PoseData(joints);
+}
+
 PoseData highFivePose({required bool handUp}) {
   final joints = List<Joint>.generate(33, (i) => const Joint(0, 0, 0));
   const shoulder = Joint(0.3, 0.6);
