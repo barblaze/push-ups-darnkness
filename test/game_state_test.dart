@@ -126,10 +126,10 @@ void main() {
       final storage = MemoryGameStorage();
       final state = await GameState.load(storage: storage);
 
-      expect(state.defaultPlacement, CameraPlacement.profile);
-      await state.setDefaultPlacement(CameraPlacement.front);
       expect(state.defaultPlacement, CameraPlacement.front);
-      expect(storage.data.defaultPlacement, CameraPlacement.front);
+      await state.setDefaultPlacement(CameraPlacement.profile);
+      expect(state.defaultPlacement, CameraPlacement.profile);
+      expect(storage.data.defaultPlacement, CameraPlacement.profile);
     });
   });
 

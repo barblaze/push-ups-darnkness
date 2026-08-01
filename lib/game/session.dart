@@ -84,7 +84,7 @@ class PersistedData {
     lastActiveDate: null,
     sessions: [],
     defaultMode: PushUpMode.floor,
-    defaultPlacement: CameraPlacement.profile,
+    defaultPlacement: CameraPlacement.front,
   );
 
   PlayerStats get stats => PlayerStats(
@@ -131,7 +131,7 @@ class PersistedData {
           PushUpMode.floor,
       defaultPlacement:
           CameraPlacement.values.asNameMap()[json['defaultPlacement']] ??
-              CameraPlacement.profile,
+              CameraPlacement.front,
     );
   }
 }

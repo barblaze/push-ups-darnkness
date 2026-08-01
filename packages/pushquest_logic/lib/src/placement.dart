@@ -1,6 +1,6 @@
 import 'pushup_mode.dart';
 
-enum CameraPlacement { profile, front }
+enum CameraPlacement { front, profile }
 
 extension CameraPlacementDetails on CameraPlacement {
   String get label => this == CameraPlacement.profile ? 'Perfil' : 'De frente';
