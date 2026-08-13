@@ -38,10 +38,19 @@ void main() {
 
     test('target maps depth so that up is high and down is low', () {
       final g = game();
-      expect(g.targetForDepth(0.0), closeTo(0.06, 0.01));
-      expect(g.targetForDepth(1.0), closeTo(0.94, 0.01));
+      expect(g.targetForDepth(0.0), closeTo(0.10, 0.01));
+      expect(g.targetForDepth(1.0), closeTo(0.90, 0.01));
       expect(g.targetForDepth(0.5), lessThan(g.targetForDepth(1.0)));
       expect(g.targetForDepth(0.5), greaterThan(g.targetForDepth(0.0)));
+    });
+
+    test('extremos con zona muerta: pequeño movimiento no mueve el pájaro',
+        () {
+      final g = game();
+      expect(g.targetForDepth(0.05), closeTo(0.10, 0.01));
+      expect(g.targetForDepth(0.95), closeTo(0.90, 0.01));
+      expect(g.targetForDepth(0.12), closeTo(0.10, 0.01));
+      expect(g.targetForDepth(0.88), closeTo(0.90, 0.01));
     });
 
     test('altitude stays within the playable band', () {
@@ -61,15 +70,15 @@ void main() {
     test('sensitivity clamps to 0..100 and exposes smoothing', () {
       final g = game();
       expect(g.sensitivity, 50);
-      expect(g.controlSmoothing, closeTo(5.0, 1e-9));
+      expect(g.controlSmoothing, closeTo(6.0, 1e-9));
 
       g.setSensitivity(0);
       expect(g.sensitivity, 0);
-      expect(g.controlSmoothing, closeTo(3.0, 1e-9));
+      expect(g.controlSmoothing, closeTo(4.0, 1e-9));
 
       g.setSensitivity(100);
       expect(g.sensitivity, 100);
-      expect(g.controlSmoothing, closeTo(7.0, 1e-9));
+      expect(g.controlSmoothing, closeTo(8.0, 1e-9));
 
       g.setSensitivity(150);
       expect(g.sensitivity, 100);
@@ -84,13 +93,13 @@ void main() {
       final high = game()..setSensitivity(100);
 
       // Brazos extendidos (0) siempre van arriba.
-      expect(high.targetForDepth(0.0), closeTo(0.06, 0.01));
+      expect(high.targetForDepth(0.0), closeTo(0.10, 0.01));
       expect(low.targetForDepth(0.0), greaterThan(high.targetForDepth(0.0)));
-      expect(low.targetForDepth(0.0), closeTo(0.225, 0.03));
+      expect(low.targetForDepth(0.0), closeTo(0.222, 0.03));
 
       // Flexión completa (1) siempre va abajo.
-      expect(normal.targetForDepth(1.0), closeTo(0.94, 0.01));
-      expect(low.targetForDepth(1.0), closeTo(0.775, 0.03));
+      expect(normal.targetForDepth(1.0), closeTo(0.90, 0.01));
+      expect(low.targetForDepth(1.0), closeTo(0.778, 0.03));
 
       // Recorrido total menor con sensibilidad baja.
       final lowRange =
@@ -109,6 +118,81 @@ void main() {
       }
       expect(high.altitude, closeTo(0.8, 0.1));
       expect(high.altitude, greaterThan(low.altitude));
+    });
+  });
+
+  group('ArcadeGame control input', () {
+    test('feedDepth filtra el ruido de la pose', () {
+      final g = game();
+      g.feedDepth(1.0);
+      g.feedDepth(1.0);
+      g.feedDepth(1.0);
+      g.feedDepth(1.0);
+      expect(g.filteredDepth, greaterThan(0.95));
+
+      // Un frame ruidoso no debe desplazar apenas el control.
+      final before = g.filteredDepth;
+      g.feedDepth(0.2);
+      expect((g.filteredDepth - before).abs(), lessThan(0.4));
+    });
+
+    test('deadband ignora cambios mínimos', () {
+      final g = game();
+      g.feedDepth(0.5);
+      final before = g.filteredDepth;
+      g.feedDepth(0.51);
+      expect(g.filteredDepth, before);
+    });
+
+    test('targetAltitude refleja la profundidad filtrada', () {
+      final g = game();
+      for (var i = 0; i < 20; i++) {
+        g.feedDepth(0.0);
+      }
+      expect(g.filteredDepth, lessThan(0.05));
+      expect(g.targetAltitude, closeTo(0.10, 0.02));
+    });
+
+    test('calibración mapea el rango real del jugador al control completo',
+        () {
+      final g = game();
+      g.startCalibration();
+      g.feedCalibration(0.1);
+      g.feedCalibration(0.9);
+      g.endCalibration();
+
+      g.feedDepth(0.1);
+      for (var i = 0; i < 6; i++) {
+        g.feedDepth(0.1);
+      }
+      expect(g.filteredDepth, lessThan(0.05));
+      expect(g.targetAltitude, closeTo(0.10, 0.02));
+
+      for (var i = 0; i < 8; i++) {
+        g.feedDepth(0.9);
+      }
+      expect(g.filteredDepth, greaterThan(0.95));
+      expect(g.targetAltitude, closeTo(0.90, 0.02));
+    });
+
+    test('calibración degenerada cae al rango completo', () {
+      final g = game();
+      g.startCalibration();
+      g.feedCalibration(0.5);
+      g.feedCalibration(0.6);
+      g.endCalibration();
+      for (var i = 0; i < 10; i++) {
+        g.feedDepth(0.55);
+      }
+      expect(g.filteredDepth, closeTo(0.55, 0.05));
+      expect(g.targetAltitude, closeTo(0.5, 0.1));
+    });
+
+    test('feedDepth no hace nada durante la calibración', () {
+      final g = game();
+      g.startCalibration();
+      g.feedDepth(0.9);
+      expect(g.filteredDepth, 0.5);
     });
   });
 

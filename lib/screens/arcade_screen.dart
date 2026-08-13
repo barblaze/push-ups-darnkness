@@ -134,6 +134,7 @@ class _ArcadeScreenState extends State<ArcadeScreen>
       _countdown = 3;
       _phase = _ArcadePhase.countdown;
     });
+    _game.startCalibration();
     _countdownTimer?.cancel();
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) return;
@@ -146,6 +147,7 @@ class _ArcadeScreenState extends State<ArcadeScreen>
           _phase = _ArcadePhase.playing;
           _sessionStart = DateTime.now();
         });
+        _game.endCalibration();
         _game.reset();
         _bestCombo = 0;
       }
@@ -165,6 +167,13 @@ class _ArcadeScreenState extends State<ArcadeScreen>
         final update = _counter.update(pose ?? _emptyPose());
         _bestCombo = math.max(_bestCombo, update.combo);
         if (update.completedRep != null) Haptics.rep();
+        if (update.bodyVisible) {
+          if (_phase == _ArcadePhase.countdown) {
+            _game.feedCalibration(update.depthRatio);
+          } else {
+            _game.feedDepth(update.depthRatio);
+          }
+        }
         if (mounted) {
           setState(() {
             _lastUpdate = update;
@@ -194,12 +203,9 @@ class _ArcadeScreenState extends State<ArcadeScreen>
 
     if (_phase == _ArcadePhase.playing) {
       final update = _lastUpdate;
-      final target = update == null || !update.bodyVisible
-          ? _game.targetForDepth(0.5)
-          : _game.targetForDepth(update.depthRatio);
       final event = _game.update(
         dt.clamp(0.0, 0.05),
-        targetAltitude: target,
+        targetAltitude: _game.targetAltitude,
         bodyVisible: update?.bodyVisible ?? false,
       );
       switch (event) {

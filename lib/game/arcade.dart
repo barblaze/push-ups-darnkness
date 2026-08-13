@@ -129,26 +129,96 @@ class ArcadeGame {
   double get gain => 0.5 + (_sensitivity / 100.0);
 
   /// Constante de suavizado: baja sens = más suave, alta = más directa.
-  double get controlSmoothing => 3.0 + (_sensitivity / 100.0) * 4.0;
+  double get controlSmoothing => 4.0 + (_sensitivity / 100.0) * 4.0;
 
   void setSensitivity(int sensitivity) {
     _sensitivity = sensitivity.clamp(0, 100).toDouble();
   }
 
+  /// Profundidad ya filtrada y calibrada [0..1] (para el gauge).
+  double _filteredDepth = 0.5;
+
+  /// Profundidad suavizada visible (para el gauge de calibración).
+  double get filteredDepth => _filteredDepth;
+
+  // Filtro de entrada: elimina el jitter de la pose.
+  static const double _inputFilterK = 0.5;
+  static const double _depthDeadband = 0.02;
+
+  // Calibración al rango real de profundidad del jugador.
+  bool _calibrating = false;
+  double _calMin = 1;
+  double _calMax = 0;
+  double _calLo = 0;
+  double _calHi = 1;
+  bool _calibrated = false;
+
+  /// Arranca la calibración (llamar al inicio del countdown).
+  void startCalibration() {
+    _calibrating = true;
+    _calibrated = false;
+    _calMin = 1;
+    _calMax = 0;
+    _filteredDepth = 0.5;
+  }
+
+  /// Alimenta la profundidad cruda durante la calibración.
+  void feedCalibration(double depthRatio) {
+    if (!_calibrating) return;
+    final c = depthRatio.clamp(0.0, 1.0);
+    _calMin = math.min(_calMin, c);
+    _calMax = math.max(_calMax, c);
+  }
+
+  /// Termina la calibración: fija el rango capturado al espacio de control.
+  void endCalibration() {
+    _calibrating = false;
+    var lo = _calMin;
+    var hi = _calMax;
+    // Rango insuficiente (apenas se movió): caer al rango completo.
+    if (hi - lo < 0.15) {
+      lo = 0;
+      hi = 1;
+    }
+    _calLo = lo;
+    _calHi = hi;
+    _calibrated = true;
+  }
+
+  double _normalizedDepth(double raw) {
+    final r = raw.clamp(0.0, 1.0);
+    if (!_calibrated) return r;
+    return ((r - _calLo) / (_calHi - _calLo)).clamp(0.0, 1.0);
+  }
+
+  /// Alimenta la profundidad cruda de la pose: normaliza con la calibración,
+  /// ignora cambios mínimos (deadband) y suaviza el resto.
+  void feedDepth(double depthRatio) {
+    if (_calibrating || gameOver) return;
+    final n = _normalizedDepth(depthRatio);
+    if ((n - _filteredDepth).abs() < _depthDeadband) return;
+    _filteredDepth += (n - _filteredDepth) * _inputFilterK;
+  }
+
+  /// Objetivo actual del pájaro a partir de la profundidad filtrada.
+  double get targetAltitude => targetForDepth(_filteredDepth);
+
   /// Altitud objetivo a partir de la profundidad del push-up:
   /// brazos extendidos (0) = arriba, flexionados (1) = abajo.
   ///
-  /// Aplica zonas muertas en los extremos (el ruido de pose no tiembla el
-  /// pájaro) y la ganancia de sensibilidad.
+  /// Aplica zonas muertas amplias en los extremos (el ruido de pose no
+  /// tiembla el pájaro) y la ganancia de sensibilidad.
   double targetForDepth(double depthRatio) {
     final clamped = depthRatio.clamp(0.0, 1.0);
-    const deadTop = 0.10;
-    const deadBottom = 0.90;
+    const deadTop = 0.14;
+    const deadBottom = 0.86;
+    const minAlt = 0.10;
+    const maxAlt = 0.90;
     final d = ((clamped - 0.5) * gain + 0.5).clamp(0.0, 1.0);
-    if (d <= deadTop) return 0.06;
-    if (d >= deadBottom) return 0.94;
-    final t = ((d - deadTop) / (deadBottom - deadTop)).clamp(0.0, 1.0);
-    return 0.06 + t * 0.88;
+    if (d <= deadTop) return minAlt;
+    if (d >= deadBottom) return maxAlt;
+    final t = (d - deadTop) / (deadBottom - deadTop);
+    return minAlt + t * (maxAlt - minAlt);
   }
 
   void reset() {
