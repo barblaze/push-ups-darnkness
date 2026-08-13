@@ -67,6 +67,7 @@ class _ArcadeScreenState extends State<ArcadeScreen>
       mode: PushUpMode.arcade,
       placement: widget.placement,
     );
+    _game.setSensitivity(widget.state.arcadeSensitivity);
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     _init();
   }
@@ -288,6 +289,8 @@ class _ArcadeScreenState extends State<ArcadeScreen>
             game: _game,
             characterColor: Color(widget.state.avatar.color),
             bestScore: widget.state.arcadeBest,
+            showDepthGauge: _phase == _ArcadePhase.countdown,
+            depthRatio: _lastUpdate?.depthRatio ?? 0.5,
           ),
         ),
         SafeArea(child: _hud()),

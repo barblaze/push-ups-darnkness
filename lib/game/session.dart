@@ -59,6 +59,7 @@ class PersistedData {
     required this.defaultPlacement,
     this.parallelReps = 0,
     this.arcadeBest = 0,
+    this.arcadeSensitivity = 50,
     this.hasSeenOnboarding = false,
     this.hapticsEnabled = true,
   });
@@ -71,6 +72,7 @@ class PersistedData {
   final int floorReps;
   final int parallelReps;
   final int arcadeBest;
+  final int arcadeSensitivity;
   final int sessionsCount;
   final int daysActive;
   final String? lastActiveDate;
@@ -117,6 +119,7 @@ class PersistedData {
         'floorReps': floorReps,
         'parallelReps': parallelReps,
         'arcadeBest': arcadeBest,
+        'arcadeSens': arcadeSensitivity,
         'sessionsCount': sessionsCount,
         'daysActive': daysActive,
         'lastActiveDate': lastActiveDate,
@@ -137,6 +140,7 @@ class PersistedData {
       floorReps: json['floorReps'] as int? ?? 0,
       parallelReps: json['parallelReps'] as int? ?? 0,
       arcadeBest: json['arcadeBest'] as int? ?? 0,
+      arcadeSensitivity: json['arcadeSens'] as int? ?? 50,
       sessionsCount: json['sessionsCount'] as int? ?? 0,
       daysActive: json['daysActive'] as int? ?? 0,
       lastActiveDate: json['lastActiveDate'] as String?,

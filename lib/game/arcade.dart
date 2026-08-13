@@ -24,15 +24,15 @@ class ArcadeObstacle {
 class ArcadeConfig {
   const ArcadeConfig({
     this.scrollSpeed = 0.22,
-    this.speedRamp = 0.006,
-    this.maxSpeed = 0.34,
+    this.speedRamp = 0.005,
+    this.maxSpeed = 0.35,
     this.gapHalf = 0.13,
     this.gapBottom = 0.16,
     this.gapTop = 0.84,
     this.spacing = 0.5,
     this.birdRadius = 0.032,
     this.controlSmoothing = 4.0,
-    this.invulnerabilitySeconds = 1.2,
+    this.invulnerabilitySeconds = 1.0,
     this.startLives = 3,
     this.firstSpawnDelay = 1.2,
   });
@@ -69,6 +69,7 @@ class ArcadeGame {
     _invulnUntil = 0;
     _speed = _config.scrollSpeed;
     _distance = -_config.firstSpawnDelay;
+    _spawnedCount = 0;
     birdVelocity = 0;
     lastPassAt = -100;
     hitAt = -100;
@@ -78,6 +79,11 @@ class ArcadeGame {
 
   final ArcadeConfig _config;
   final math.Random _random;
+
+  /// Sensibilidad del control [0..100] (default 50). La define el jugador.
+  double _sensitivity = 50;
+
+  int _spawnedCount = 0;
 
   /// Altitud del pájaro [0..1] (0 = arriba).
   double altitude = 0.5;
@@ -116,11 +122,33 @@ class ArcadeGame {
 
   double get birdRadius => _config.birdRadius;
 
+  int get sensitivity => _sensitivity.round();
+
+  /// Ganancia del control: cuánto recorre el pájaro por el mismo recorrido
+  /// de brazos. Sensibilidad baja (50 → 1.0, 0 → 0.5) mueve menos.
+  double get gain => 0.5 + (_sensitivity / 100.0);
+
+  /// Constante de suavizado: baja sens = más suave, alta = más directa.
+  double get controlSmoothing => 3.0 + (_sensitivity / 100.0) * 4.0;
+
+  void setSensitivity(int sensitivity) {
+    _sensitivity = sensitivity.clamp(0, 100).toDouble();
+  }
+
   /// Altitud objetivo a partir de la profundidad del push-up:
   /// brazos extendidos (0) = arriba, flexionados (1) = abajo.
+  ///
+  /// Aplica zonas muertas en los extremos (el ruido de pose no tiembla el
+  /// pájaro) y la ganancia de sensibilidad.
   double targetForDepth(double depthRatio) {
     final clamped = depthRatio.clamp(0.0, 1.0);
-    return 0.06 + clamped * 0.88;
+    const deadTop = 0.10;
+    const deadBottom = 0.90;
+    final d = ((clamped - 0.5) * gain + 0.5).clamp(0.0, 1.0);
+    if (d <= deadTop) return 0.06;
+    if (d >= deadBottom) return 0.94;
+    final t = ((d - deadTop) / (deadBottom - deadTop)).clamp(0.0, 1.0);
+    return 0.06 + t * 0.88;
   }
 
   void reset() {
@@ -152,7 +180,7 @@ class ArcadeGame {
     }
     _target = _lastTarget;
     final previous = altitude;
-    final t = 1 - math.exp(-_config.controlSmoothing * dt);
+    final t = 1 - math.exp(-controlSmoothing * dt);
     altitude += (_target - altitude) * t;
     birdVelocity = dt > 0 ? (altitude - previous) / dt : 0;
 
@@ -197,19 +225,31 @@ class ArcadeGame {
   }
 
   void _spawnObstacle() {
-    final center = _gapCenter();
+    final gapHalf = _effectiveGap();
+    final center = _gapCenter(gapHalf);
+    _spawnedCount += 1;
     obstacles.add(
       ArcadeObstacle(
         x: 1.05,
         gapCenter: center,
-        gapHalf: _config.gapHalf,
+        gapHalf: gapHalf,
       ),
     );
   }
 
-  double _gapCenter() {
-    final margin = _config.gapBottom + _config.gapHalf;
-    final max = _config.gapTop - _config.gapHalf;
+  /// El hueco se encoge suavemente con el puntaje (dificultad progresiva)
+  /// y los primeros pilares son un poco más anchos (calentamiento).
+  double _effectiveGap() {
+    var gap = _config.gapHalf;
+    final progress = (score / 15.0).clamp(0.0, 1.0);
+    gap *= 1.0 - 0.3 * progress;
+    if (_spawnedCount < 3) gap *= 1.15;
+    return gap;
+  }
+
+  double _gapCenter(double gapHalf) {
+    final margin = _config.gapBottom + gapHalf;
+    final max = _config.gapTop - gapHalf;
     final range = math.max(0.01, max - margin);
     final previous = obstacles.isEmpty ? 0.5 : obstacles.last.gapCenter;
     final next = margin + _random.nextDouble() * range;

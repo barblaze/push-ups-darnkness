@@ -10,6 +10,8 @@ class ArcadePainter extends CustomPainter {
     required this.game,
     required this.characterColor,
     required this.bestScore,
+    this.showDepthGauge = false,
+    this.depthRatio = 0.5,
   });
 
   final ArcadeGame game;
@@ -19,6 +21,12 @@ class ArcadePainter extends CustomPainter {
 
   /// Mejor puntaje guardado, para el aviso de nuevo récord.
   final int bestScore;
+
+  /// Dibuja el medidor de profundidad (calibración durante el countdown).
+  final bool showDepthGauge;
+
+  /// Profundidad actual del push-up [0..1].
+  final double depthRatio;
 
   static const _groundFraction = 0.08;
 
@@ -57,7 +65,84 @@ class ArcadePainter extends CustomPainter {
     canvas.restore();
 
     _drawScoreAndHud(canvas, w, h);
+    if (showDepthGauge) _drawDepthGauge(canvas, w, h);
     _drawHitFlash(canvas, w, h);
+  }
+
+  void _drawDepthGauge(Canvas canvas, double w, double h) {
+    const topRatio = 0.06;
+    const bottomRatio = 0.94;
+    final trackX = w - 26.0;
+    final topY = h * 0.2;
+    final bottomY = h * 0.78;
+    final trackH = bottomY - topY;
+    final trackRect = Rect.fromLTWH(trackX, topY, 9, trackH);
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(trackRect, const Radius.circular(4.5)),
+      Paint()..color = const Color(0x66000000),
+    );
+
+    // Zonas muertas en los extremos.
+    final deadTop = topY + (0.16 / (bottomRatio - topRatio)) * trackH;
+    final deadBottom = topY + (0.84 / (bottomRatio - topRatio)) * trackH;
+    final deadPaint = Paint()..color = AppColors.danger.withValues(alpha: 0.28);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(trackX, topY, 9, deadTop - topY),
+        const Radius.circular(4.5),
+      ),
+      deadPaint,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(trackX, deadBottom, 9, bottomY - deadBottom),
+        const Radius.circular(4.5),
+      ),
+      deadPaint,
+    );
+
+    // Objetivo del pájaro según la profundidad actual.
+    final target = game.targetForDepth(depthRatio).clamp(0.0, 1.0);
+    final dotY = topY + (target / (bottomRatio - topRatio)) * trackH;
+    canvas.drawCircle(
+      Offset(trackX + 4.5, dotY),
+      6,
+      Paint()..color = Colors.white,
+    );
+    canvas.drawCircle(
+      Offset(trackX + 4.5, dotY),
+      4,
+      Paint()..color = characterColor,
+    );
+
+    final label = TextPainter(
+      text: TextSpan(
+        text: 'ARRIBA',
+        style: const TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.w800,
+          color: Colors.white70,
+          shadows: [Shadow(color: Colors.black87, blurRadius: 4)],
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    label.paint(canvas, Offset(trackX - 2, topY - 14));
+
+    final label2 = TextPainter(
+      text: TextSpan(
+        text: 'ABAJO',
+        style: const TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.w800,
+          color: Colors.white70,
+          shadows: [Shadow(color: Colors.black87, blurRadius: 4)],
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    label2.paint(canvas, Offset(trackX - 2, bottomY + 4));
   }
 
   void _applyShake(Canvas canvas, double w, double h) {

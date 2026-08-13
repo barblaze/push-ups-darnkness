@@ -4,7 +4,12 @@ import 'package:pushquest/game/arcade.dart';
 import 'package:pushquest/widgets/arcade_painter.dart';
 
 void main() {
-  Widget wrap(ArcadeGame game, {int best = 5}) {
+  Widget wrap(
+    ArcadeGame game, {
+    int best = 5,
+    bool showDepthGauge = false,
+    double depthRatio = 0.5,
+  }) {
     return MaterialApp(
       home: SizedBox(
         width: 320,
@@ -14,6 +19,8 @@ void main() {
             game: game,
             characterColor: const Color(0xFFFF6B35),
             bestScore: best,
+            showDepthGauge: showDepthGauge,
+            depthRatio: depthRatio,
           ),
         ),
       ),
@@ -64,6 +71,18 @@ void main() {
     game.score = 12;
     game.lastPassAt = 0;
     await tester.pumpWidget(wrap(game, best: 5));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('painter dibuja el gauge de profundidad en countdown',
+      (tester) async {
+    final game = ArcadeGame(
+      config: const ArcadeConfig(firstSpawnDelay: 100),
+    );
+    await tester.pumpWidget(
+      wrap(game, showDepthGauge: true, depthRatio: 0.7),
+    );
     await tester.pump(const Duration(milliseconds: 100));
     expect(tester.takeException(), isNull);
   });

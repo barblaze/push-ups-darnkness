@@ -163,6 +163,11 @@ void main() {
       await state.setHapticsEnabled(false);
       expect(state.hapticsEnabled, isFalse);
       expect(storage.data.hapticsEnabled, isFalse);
+
+      expect(state.arcadeSensitivity, 50);
+      await state.setArcadeSensitivity(20);
+      expect(state.arcadeSensitivity, 20);
+      expect(storage.data.arcadeSensitivity, 20);
     });
 
     test('arcade session keeps best score and counts reps', () async {
@@ -222,6 +227,7 @@ void main() {
         ],
         defaultMode: PushUpMode.free,
         defaultPlacement: CameraPlacement.front,
+        arcadeSensitivity: 25,
       );
 
       final decoded = PersistedData.fromJson(original.toJson());
@@ -231,6 +237,7 @@ void main() {
       expect(decoded.streakDays, original.streakDays);
       expect(decoded.defaultMode, PushUpMode.free);
       expect(decoded.defaultPlacement, CameraPlacement.front);
+      expect(decoded.arcadeSensitivity, 25);
       expect(decoded.sessions.length, 1);
       expect(decoded.sessions.first.reps, 25);
       expect(decoded.sessions.first.mode, PushUpMode.floor);

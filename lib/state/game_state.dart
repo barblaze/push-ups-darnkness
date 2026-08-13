@@ -68,6 +68,16 @@ class GameState extends ChangeNotifier {
 
   int get arcadeBest => _data.arcadeBest;
 
+  int get arcadeSensitivity => _data.arcadeSensitivity;
+
+  Future<void> setArcadeSensitivity(int value) async {
+    final clamped = value.clamp(0, 100);
+    if (_data.arcadeSensitivity == clamped) return;
+    _data = _copyWith(_data, arcadeSensitivity: clamped);
+    notifyListeners();
+    await _persist();
+  }
+
   bool get hasSeenOnboarding => _data.hasSeenOnboarding;
 
   bool get hapticsEnabled => _data.hapticsEnabled;
@@ -169,6 +179,7 @@ class GameState extends ChangeNotifier {
       parallelReps: _data.parallelReps +
           (summary.mode == PushUpMode.parallel ? summary.reps : 0),
       arcadeBest: _data.arcadeBest > arcadeScore ? _data.arcadeBest : arcadeScore,
+      arcadeSensitivity: _data.arcadeSensitivity,
       sessionsCount: _data.sessionsCount + 1,
       daysActive: daysActive,
       lastActiveDate: todayKey,
@@ -208,6 +219,7 @@ class GameState extends ChangeNotifier {
     CameraPlacement? defaultPlacement,
     bool? hasSeenOnboarding,
     bool? hapticsEnabled,
+    int? arcadeSensitivity,
   }) {
     return PersistedData(
       totalReps: data.totalReps,
@@ -218,6 +230,7 @@ class GameState extends ChangeNotifier {
       floorReps: data.floorReps,
       parallelReps: data.parallelReps,
       arcadeBest: data.arcadeBest,
+      arcadeSensitivity: arcadeSensitivity ?? data.arcadeSensitivity,
       sessionsCount: data.sessionsCount,
       daysActive: data.daysActive,
       lastActiveDate: data.lastActiveDate,

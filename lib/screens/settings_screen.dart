@@ -9,6 +9,12 @@ class SettingsScreen extends StatelessWidget {
 
   final GameState state;
 
+  static String _sensitivityLabel(int value) {
+    if (value <= 30) return 'Suave';
+    if (value >= 70) return 'Sensible';
+    return 'Equilibrada';
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -39,6 +45,62 @@ class SettingsScreen extends StatelessWidget {
                       HapticFeedback.lightImpact();
                       state.setHapticsEnabled(value);
                     },
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Sensibilidad del mini juego',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            Text(
+                              _sensitivityLabel(state.arcadeSensitivity),
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.accent,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Slider(
+                          value: state.arcadeSensitivity.toDouble(),
+                          min: 0,
+                          max: 100,
+                          divisions: 10,
+                          label:
+                              _sensitivityLabel(state.arcadeSensitivity),
+                          onChanged: (value) {
+                            state.setArcadeSensitivity(value.round());
+                          },
+                        ),
+                        const Text(
+                          'Extiende los brazos para subir y flexiona para '
+                          'bajar. Baja la sensibilidad si el pájaro tiembla '
+                          'o se siente brusco.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            height: 1.4,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 8),

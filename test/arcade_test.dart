@@ -57,6 +57,99 @@ void main() {
     });
   });
 
+  group('ArcadeGame sensitivity', () {
+    test('sensitivity clamps to 0..100 and exposes smoothing', () {
+      final g = game();
+      expect(g.sensitivity, 50);
+      expect(g.controlSmoothing, closeTo(5.0, 1e-9));
+
+      g.setSensitivity(0);
+      expect(g.sensitivity, 0);
+      expect(g.controlSmoothing, closeTo(3.0, 1e-9));
+
+      g.setSensitivity(100);
+      expect(g.sensitivity, 100);
+      expect(g.controlSmoothing, closeTo(7.0, 1e-9));
+
+      g.setSensitivity(150);
+      expect(g.sensitivity, 100);
+
+      g.setSensitivity(-10);
+      expect(g.sensitivity, 0);
+    });
+
+    test('lower sensitivity means less movement for the same depth', () {
+      final low = game()..setSensitivity(0);
+      final normal = game()..setSensitivity(50);
+      final high = game()..setSensitivity(100);
+
+      // Brazos extendidos (0) siempre van arriba.
+      expect(high.targetForDepth(0.0), closeTo(0.06, 0.01));
+      expect(low.targetForDepth(0.0), greaterThan(high.targetForDepth(0.0)));
+      expect(low.targetForDepth(0.0), closeTo(0.225, 0.03));
+
+      // Flexión completa (1) siempre va abajo.
+      expect(normal.targetForDepth(1.0), closeTo(0.94, 0.01));
+      expect(low.targetForDepth(1.0), closeTo(0.775, 0.03));
+
+      // Recorrido total menor con sensibilidad baja.
+      final lowRange =
+          low.targetForDepth(1.0) - low.targetForDepth(0.0);
+      final normalRange =
+          normal.targetForDepth(1.0) - normal.targetForDepth(0.0);
+      expect(lowRange, lessThan(normalRange));
+    });
+
+    test('low sensitivity is smoother (slower follow)', () {
+      final low = game()..setSensitivity(0);
+      final high = game()..setSensitivity(100);
+      for (var i = 0; i < 5; i++) {
+        low.update(0.05, targetAltitude: 0.8, bodyVisible: true);
+        high.update(0.05, targetAltitude: 0.8, bodyVisible: true);
+      }
+      expect(high.altitude, closeTo(0.8, 0.1));
+      expect(high.altitude, greaterThan(low.altitude));
+    });
+  });
+
+  group('ArcadeGame gaps', () {
+    ArcadeGame fastGame() => ArcadeGame(
+          config: const ArcadeConfig(
+            scrollSpeed: 0.5,
+            spacing: 0.5,
+            firstSpawnDelay: 0,
+          ),
+        );
+
+    test('first obstacles are wider (warm-up), then gaps tighten', () {
+      final g = fastGame();
+      final gaps = <double>[];
+      for (var i = 0; i < 8; i++) {
+        g.update(1.0, targetAltitude: 0.5, bodyVisible: true);
+        gaps.add(g.obstacles.last.gapHalf);
+      }
+      // Primeros 3: calentamiento (+15%).
+      expect(gaps[0], closeTo(0.13 * 1.15, 1e-6));
+      expect(gaps[1], closeTo(0.13 * 1.15, 1e-6));
+      expect(gaps[2], closeTo(0.13 * 1.15, 1e-6));
+      // A partir del 4º empieza la rampa de dificultad.
+      expect(gaps[3], lessThan(gaps[2]));
+      for (var i = 3; i < gaps.length - 1; i++) {
+        expect(gaps[i + 1], lessThanOrEqualTo(gaps[i]));
+      }
+    });
+
+    test('gap shrinks up to 30% once score is high', () {
+      final g = fastGame();
+      for (var i = 0; i < 6; i++) {
+        g.update(1.0, targetAltitude: 0.5, bodyVisible: true);
+      }
+      g.score = 100;
+      g.update(1.0, targetAltitude: 0.5, bodyVisible: true);
+      expect(g.obstacles.last.gapHalf, closeTo(0.13 * 0.7, 1e-6));
+    });
+  });
+
   group('ArcadeGame obstacles', () {
     test('spawns obstacles after the first spawn delay', () {
       final g = ArcadeGame(
