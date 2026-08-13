@@ -1,13 +1,11 @@
 import 'dart:math' as math;
 
 import 'geometry.dart';
-import 'placement.dart';
 import 'pose_data.dart';
 
 class BodyAnalysis {
   const BodyAnalysis({
     required this.bodyVisible,
-    required this.elbowAngle,
     required this.sagRatio,
     required this.plank,
     required this.plankRatio,
@@ -15,13 +13,12 @@ class BodyAnalysis {
   });
 
   final bool bodyVisible;
-  final double elbowAngle;
   final double sagRatio;
   final bool plank;
   final double plankRatio;
 
-  /// Vista frontal: qué tan bajaron los hombros hacia las muñecas,
-  /// normalizado por el torso (1 = brazos estirados, ~0 = pecho al suelo).
+  /// Qué tan bajaron los hombros hacia las muñecas, normalizado por el torso
+  /// (1 = brazos estirados, ~0 = pecho al suelo).
   final double dropRatio;
 }
 
@@ -59,90 +56,36 @@ Joint? _visible(Joint a, Joint b) {
   return null;
 }
 
-BodyAnalysis analyzeBody(
-  PoseData pose, {
-  CameraPlacement placement = CameraPlacement.profile,
-}) {
-  final shoulderL = pose.leftShoulder;
-  final shoulderR = pose.rightShoulder;
-  final elbowL = pose.leftElbow;
-  final elbowR = pose.rightElbow;
-  final wristL = pose.leftWrist;
-  final wristR = pose.rightWrist;
-
-  final shoulders = _visible(shoulderL, shoulderR);
-  final elbows = _visible(elbowL, elbowR);
-  final wrists = _visible(wristL, wristR);
+/// Analiza el cuerpo en la vista frontal. La señal de profundidad es la caída
+/// de los hombros hacia las muñecas normalizada por la distancia hombros→caderas.
+BodyAnalysis analyzeBody(PoseData pose) {
+  final shoulders = _visible(pose.leftShoulder, pose.rightShoulder);
+  final wrists = _visible(pose.leftWrist, pose.rightWrist);
   final hips = _visible(pose.leftHip, pose.rightHip);
-  final ankles = _visible(pose.leftAnkle, pose.rightAnkle);
 
   const notVisible = BodyAnalysis(
     bodyVisible: false,
-    elbowAngle: 0,
     sagRatio: 0,
     plank: false,
     plankRatio: 0,
     dropRatio: 0,
   );
 
-  final front = placement == CameraPlacement.front;
-
-  if (front) {
-    if (shoulders == null || wrists == null || hips == null) {
-      return notVisible;
-    }
-    // La distancia euclídea hombros→caderas es casi constante durante la rep;
-    // la altura vertical (hips.y - shoulders.y) colapsa a ~0 e incluso se vuelve
-    // negativa al fondo, lo que hacía la señal inestable y doblaba el conteo.
-    final torso = distance(shoulders, hips);
-    if (torso <= 0.001) return notVisible;
-    final dropRatio = (wrists.y - shoulders.y) / torso;
-    return BodyAnalysis(
-      bodyVisible: true,
-      elbowAngle: elbows == null ? 180 : angleAt(shoulders, elbows, wrists),
-      sagRatio: 0,
-      plank: true,
-      plankRatio: 0,
-      dropRatio: dropRatio,
-    );
-  }
-
-  if (shoulders == null || elbows == null || wrists == null) {
+  if (shoulders == null || wrists == null || hips == null) {
     return notVisible;
   }
-
-  if (hips == null) {
-    return notVisible;
-  }
-
-  final elbowAngle = angleAt(shoulders, elbows, wrists);
-
-  // Los tobillos pueden salirse del encuadre en la vista de perfil; si no son
-  // visibles se usa la distancia hombros→caderas como longitud de referencia
-  // y se omite la evaluación de la cadera (sag), pero el conteo sigue activo.
-  final torsoLen = ankles == null
-      ? distance(shoulders, hips)
-      : distance(shoulders, ankles);
-  if (torsoLen <= 0.001) {
-    return notVisible;
-  }
-
-  final plankRatio = (shoulders.y - hips.y).abs() / torsoLen;
-  final plank = plankRatio <= 0.18;
-
-  final sagRatio = ankles == null
-      ? 0.0
-      : signedDistanceToLine(hips, shoulders, ankles) *
-          (shoulders.x < ankles.x ? 1.0 : -1.0) /
-          torsoLen;
-
+  // La distancia euclídea hombros→caderas es casi constante durante la rep;
+  // la altura vertical (hips.y - shoulders.y) colapsa a ~0 e incluso se vuelve
+  // negativa al fondo, lo que hacía la señal inestable y doblaba el conteo.
+  final torso = distance(shoulders, hips);
+  if (torso <= 0.001) return notVisible;
+  final dropRatio = (wrists.y - shoulders.y) / torso;
   return BodyAnalysis(
     bodyVisible: true,
-    elbowAngle: elbowAngle,
-    sagRatio: sagRatio,
-    plank: plank,
-    plankRatio: plankRatio,
-    dropRatio: 0,
+    sagRatio: 0,
+    plank: true,
+    plankRatio: 0,
+    dropRatio: dropRatio,
   );
 }
 

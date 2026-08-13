@@ -1,49 +1,9 @@
 import 'pushup_mode.dart';
 
-enum CameraPlacement { front, profile }
-
-extension CameraPlacementDetails on CameraPlacement {
-  String get label => this == CameraPlacement.profile ? 'Perfil' : 'De frente';
-
-  String get icon => this == CameraPlacement.profile ? '👤' : '🤳';
-
-  String get positionHint => this == CameraPlacement.profile
-      ? 'Celular de lado, viendo tu perfil completo'
-      : 'Celular vertical y de frente; procura que no se salgan tus pies';
-}
-
-double upAngleFor(CameraPlacement placement) =>
-    placement == CameraPlacement.front ? 150 : 160;
-
-double countAngleFor(PushUpMode mode, CameraPlacement placement) {
-  if (placement == CameraPlacement.front) {
-    return switch (mode) {
-      PushUpMode.floor => 110,
-      PushUpMode.parallel => 110,
-      PushUpMode.free || PushUpMode.arcade => 115,
-    };
-  }
-  return switch (mode) {
-    PushUpMode.floor => 95,
-    PushUpMode.parallel => 105,
-    PushUpMode.free || PushUpMode.arcade => 110,
-  };
-}
-
-double targetAngleFor(PushUpMode mode, CameraPlacement placement) {
-  if (placement == CameraPlacement.front) {
-    return switch (mode) {
-      PushUpMode.floor => 70,
-      PushUpMode.parallel => 70,
-      PushUpMode.free || PushUpMode.arcade => 80,
-    };
-  }
-  return switch (mode) {
-    PushUpMode.floor => 80,
-    PushUpMode.parallel => 75,
-    PushUpMode.free || PushUpMode.arcade => 80,
-  };
-}
+/// Orientación de la cámara. La app usa únicamente la vista frontal; el valor
+/// único se conserva para poder leer datos guardados por versiones anteriores
+/// (un `'profile'` viejo se resuelve a `front` al parsear).
+enum CameraPlacement { front }
 
 /// Vista frontal: la señal de conteo es la caída de los hombros hacia las
 /// muñecas (dropRatio), no el ángulo de codo, porque el codo se dobla en el

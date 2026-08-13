@@ -139,7 +139,6 @@ class _ResultsScreenState extends State<ResultsScreen> {
                         builder: (_) => WorkoutScreen(
                           state: widget.state,
                           mode: session.mode,
-                          placement: session.placement,
                         ),
                       ),
                     ),

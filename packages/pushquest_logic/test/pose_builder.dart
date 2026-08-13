@@ -36,39 +36,6 @@ PoseData plankPose({
   return PoseData(joints);
 }
 
-/// Cuerpo vertical sobre barras paralelas: hombros y caderas alineados en el
-/// eje vertical (sin plancha), con el ángulo de codo controlado.
-PoseData parallelPose({
-  required double elbowAngle,
-  double sag = 0,
-  bool ankles = true,
-}) {
-  final joints = List<Joint>.generate(33, (i) => const Joint(0, 0, 0));
-  const shoulder = Joint(0.4, 0.30);
-  const ankle = Joint(0.4, 1.0);
-  const elbow = Joint(0.4, 0.42);
-  final theta = elbowAngle * math.pi / 180;
-  final wrist = Joint(
-    0.4 + 0.12 * math.sin(theta),
-    0.42 - 0.12 * math.cos(theta),
-  );
-  final hipSagged = Joint(0.4 + sag * 0.4, 0.65);
-
-  joints[11] = shoulder;
-  joints[12] = shoulder;
-  joints[13] = elbow;
-  joints[14] = elbow;
-  joints[15] = wrist;
-  joints[16] = wrist;
-  joints[23] = hipSagged;
-  joints[24] = hipSagged;
-  if (ankles) {
-    joints[27] = ankle;
-    joints[28] = ankle;
-  }
-  return PoseData(joints);
-}
-
 PoseData frontPose({required double drop, bool hipsVisible = true}) {
   final joints = List<Joint>.generate(33, (i) => const Joint(0, 0, 0));
   const shoulder = Joint(0.3, 0.4);

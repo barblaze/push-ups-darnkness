@@ -7,16 +7,17 @@ import 'package:pushquest_logic/pushquest_logic.dart';
 
 import '../game/camera_setup.dart';
 import '../pose/pose_detector_service.dart';
+import '../state/game_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/pose_overlay_painter.dart';
 
+/// Pantalla guiada de calibración: captura el rango real de movimiento del
+/// usuario (dropRatio con brazos extendidos y en el punto más profundo) y lo
+/// guarda para que el conteo y el mini juego se ajusten a su cuerpo.
 class CalibrationScreen extends StatefulWidget {
-  const CalibrationScreen({
-    super.key,
-    this.placement = CameraPlacement.profile,
-  });
+  const CalibrationScreen({super.key, required this.state});
 
-  final CameraPlacement placement;
+  final GameState state;
 
   @override
   State<CalibrationScreen> createState() => _CalibrationScreenState();
@@ -34,14 +35,11 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
   String _status = 'Iniciando…';
 
   PoseData? _lastPose;
-  DateTime? _lastFrameTime;
-  double _fps = 0;
-  int _frameMs = 0;
-  int _processedFrames = 0;
-  int _frameWidth = 0;
-  int _frameHeight = 0;
+  double _liveSignal = 0;
   double _signalMin = double.infinity;
   double _signalMax = double.negativeInfinity;
+  double _range = 0;
+  bool _saving = false;
 
   @override
   void initState() {
@@ -63,8 +61,7 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
       if (!status.isGranted) {
         setState(() {
           _permissionDenied = true;
-          _fatalError =
-              'Se necesita permiso de cámara para probar la detección.';
+          _fatalError = 'Se necesita permiso de cámara para calibrar.';
           _isInitializing = false;
         });
         return;
@@ -90,10 +87,7 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
       if (!mounted) return;
       setState(() {
         _isInitializing = false;
-        _status =
-            'Detector listo (${_poseDetector.accelerationMode.name}) · '
-            '${controller.value.previewSize?.width.toInt() ?? 0}x'
-            '${controller.value.previewSize?.height.toInt() ?? 0}';
+        _status = 'Calibrando…';
       });
 
       await controller.startImageStream(_onFrame);
@@ -111,56 +105,60 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
     if (_isProcessing || _fatalError != null) return;
     _isProcessing = true;
     try {
-      final started = DateTime.now();
       final rotation = _cameraController?.description.sensorOrientation ?? 0;
       final pose = await _poseDetector.detectFromCameraImage(
         image,
         rotation: rotation,
       );
-      final frameMs = DateTime.now().difference(started).inMilliseconds;
-
-      final now = DateTime.now();
-      final dt = _lastFrameTime == null
-          ? 0.0
-          : now.difference(_lastFrameTime!).inMilliseconds;
-      _lastFrameTime = now;
-      if (dt > 0) {
-        final instant = 1000 / dt;
-        _fps = _fps == 0 ? instant : _fps * 0.8 + instant * 0.2;
+      final analysis = pose == null ? null : analyzeBody(pose);
+      final signal = analysis?.bodyVisible == true ? analysis!.dropRatio : 0.0;
+      if (analysis?.bodyVisible == true) {
+        if (signal < _signalMin) _signalMin = signal;
+        if (signal > _signalMax) _signalMax = signal;
+        final range = _signalMax - _signalMin;
+        if (range >= DepthCalibration.minRange) {
+          _range = range;
+        }
       }
-
-      final front = widget.placement == CameraPlacement.front;
-      final analysis =
-          pose == null ? null : analyzeBody(pose, placement: widget.placement);
-      if (analysis != null && analysis.bodyVisible) {
-        final signal = front ? analysis.dropRatio : analysis.elbowAngle;
-        setState(() {
-          if (signal < _signalMin) _signalMin = signal;
-          if (signal > _signalMax) _signalMax = signal;
-        });
-      }
-
       if (mounted) {
         setState(() {
           _lastPose = pose;
-          _frameMs = frameMs;
-          _frameWidth = image.width;
-          _frameHeight = image.height;
-          _processedFrames += 1;
+          _liveSignal = signal;
         });
       }
     } catch (_) {
-      // Un frame fallido no debe detener la prueba.
+      // Un frame fallido no debe detener la calibración.
     } finally {
       _isProcessing = false;
     }
+  }
+
+  bool get _ready => _range >= DepthCalibration.minRange;
+
+  Future<void> _save() async {
+    if (!_ready || _saving) return;
+    setState(() => _saving = true);
+    await widget.state.saveCalibration(
+      DepthCalibration(
+        upSignal: _signalMax,
+        downSignal: _signalMin,
+        calibratedAt: DateTime.now(),
+      ),
+    );
+    if (!mounted) return;
+    Navigator.of(context).pop();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Calibración guardada: el conteo se ajusta a tu rango.'),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(title: const Text('Probar detección')),
+      appBar: AppBar(title: const Text('Calibrar movimiento')),
       body: _buildBody(),
     );
   }
@@ -245,251 +243,102 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
         SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(12),
-            child: _hudPanel(),
+            child: _panel(),
           ),
         ),
       ],
     );
   }
 
-  Widget _hudPanel() {
-    final pose = _lastPose;
-    final placement = widget.placement;
-    final front = placement == CameraPlacement.front;
-    final analysis =
-        pose == null ? null : analyzeBody(pose, placement: placement);
-    final signal = analysis == null
+  Widget _panel() {
+    final hasRange = _signalMin.isFinite && _signalMax.isFinite;
+    final depth = _liveSignal == 0
         ? 0.0
-        : (front ? analysis.dropRatio : analysis.elbowAngle);
-    final upThreshold = front
-        ? frontUpDropFor(PushUpMode.floor)
-        : upAngleFor(placement);
-    final targetThreshold = front
-        ? frontTargetDropFor(PushUpMode.floor)
-        : targetAngleFor(PushUpMode.floor, placement);
-    final depth = analysis == null
-        ? 0.0
-        : ((upThreshold - signal) / (upThreshold - targetThreshold))
+        : ((_signalMax - _liveSignal) / (_signalMax - _signalMin))
             .clamp(0.0, 1.0);
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.black87,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            _status,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
+          const Text(
+            'Coloca el celular de frente, entra completo en cuadro y haz 2-3 '
+            'lagartijas completas. La app aprende tu rango real de movimiento.',
+            style: TextStyle(color: Colors.white70, fontSize: 14, height: 1.4),
+          ),
+          const SizedBox(height: 14),
+          _row('Cuerpo visible', _lastPose != null ? 'SÍ' : 'no',
+              color: _lastPose != null
+                  ? AppColors.success
+                  : AppColors.danger),
+          _row('Profundidad', '${(depth * 100).toStringAsFixed(0)}%'),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: depth.clamp(0.0, 1.0),
+              minHeight: 10,
+              backgroundColor: Colors.white12,
+              valueColor: AlwaysStoppedAnimation(
+                depth >= 0.75 ? AppColors.success : AppColors.primary,
+              ),
             ),
           ),
-          const SizedBox(height: 10),
-          _row('FPS', _fps.toStringAsFixed(1)),
-          _row('Frame', '$_frameMs ms · $_frameWidth×$_frameHeight'),
-          _row(
-            'Posición',
-            '${placement.icon} ${placement.label}',
-            color: AppColors.accent,
+          const SizedBox(height: 12),
+          if (hasRange)
+            _row(
+              'Rango aprendido',
+              '${_signalMax.toStringAsFixed(2)} → '
+                  '${_signalMin.toStringAsFixed(2)}',
+              color: AppColors.accent,
+            ),
+          if (hasRange)
+            _row(
+              'Cobertura',
+              '${(_range * 100).toStringAsFixed(0)}% del mínimo útil '
+                  '(${(DepthCalibration.minRange * 100).toStringAsFixed(0)}%)',
+              color: _ready ? AppColors.success : AppColors.warning,
+            ),
+          const SizedBox(height: 14),
+          FilledButton.icon(
+            onPressed: _ready ? _save : null,
+            icon: _saving
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.check),
+            label: Text(
+              _ready ? 'GUARDAR CALIBRACIÓN' : 'HAZ 2-3 LAGARTIJAS',
+            ),
           ),
-          _row('Procesados', '$_processedFrames frames'),
-          const Divider(color: Colors.white24, height: 20),
-          if (pose == null)
-            const Text(
-              'Sin pose detectada. Colócate frente a la cámara.',
-              style: TextStyle(color: Colors.white70, fontSize: 13),
-            )
-          else ...[
-            _row('Señal', front ? 'Caída hombros' : 'Ángulo codo',
-                color: AppColors.accent),
-            _row('Profundidad', '${(depth * 100).toStringAsFixed(0)}%'),
-            if (front) ...[
-              _row(
-                'Drop ratio',
-                analysis!.dropRatio.toStringAsFixed(3),
+          if (!_ready)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                _range > 0
+                    ? '¡Sigue! Aún falta moverte más profundo y volver arriba.'
+                    : 'Mueve todo el recorrido: extiende los brazos y baja el pecho.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white54,
+                  fontSize: 12,
+                ),
               ),
-              _row(
-                'Umbral cuenta',
-                '≤ ${frontDownDropFor(PushUpMode.floor).toStringAsFixed(2)}',
-                color: AppColors.warning,
-              ),
-            ] else ...[
-              _row(
-                'Ángulo codo',
-                '${analysis!.elbowAngle.toStringAsFixed(1)}°',
-              ),
-              _row(
-                'Umbral cuenta',
-                '≤ ${countAngleFor(PushUpMode.floor, placement).toStringAsFixed(0)}°',
-                color: AppColors.warning,
-              ),
-              _row('Plancha', analysis.plank ? 'SÍ' : 'no',
-                  color: analysis.plank
-                      ? AppColors.success
-                      : AppColors.danger),
-              _row(
-                'Plank ratio',
-                analysis.plankRatio.toStringAsFixed(3),
-                color: analysis.plank
-                    ? AppColors.success
-                    : AppColors.warning,
-              ),
-              _row('Cadera (sag)', analysis.sagRatio.toStringAsFixed(3)),
-            ],
-            const SizedBox(height: 6),
-            _signalTracker(front),
-            const SizedBox(height: 4),
-            Text(
-              'Visibilidad: '
-              '${_visTag(pose.leftShoulder, pose.rightShoulder, 'hombros')} · '
-              '${_visTag(pose.leftElbow, pose.rightElbow, 'codos')} · '
-              '${_visTag(pose.leftWrist, pose.rightWrist, 'muñecas')} · '
-              '${_visTag(pose.leftHip, pose.rightHip, 'caderas')} · '
-              '${_visTag(pose.leftAnkle, pose.rightAnkle, 'tobillos')}',
-              style: const TextStyle(color: Colors.white70, fontSize: 12),
             ),
-            const SizedBox(height: 8),
-            Text(
-              front
-                  ? 'Haz 2-3 lagartijas: el "Drop ratio" debe bajar y volver a '
-                      'subir. Anota FPS y el mínimo del drop ratio.'
-                  : 'Haz 2-3 lagartijas: el esqueleto debe seguirte y el ángulo '
-                      'de codo bajar. Anota FPS y el ángulo mínimo.',
-              style: const TextStyle(color: Colors.white54, fontSize: 12, height: 1.4),
-            ),
-          ],
         ],
       ),
     );
-  }
-
-  Widget _signalTracker(bool front) {
-    final hasRange =
-        _signalMin.isFinite && _signalMax.isFinite && _signalMax > _signalMin;
-    if (!hasRange) {
-      return const Text(
-        'Sin rango todavía: haz al menos 1 lagartija completa.',
-        style: TextStyle(color: Colors.white54, fontSize: 12),
-      );
-    }
-    final pose = _lastPose;
-    final analysis =
-        pose == null ? null : analyzeBody(pose, placement: widget.placement);
-    final signal = analysis == null
-        ? 0.0
-        : (front ? analysis.dropRatio : analysis.elbowAngle);
-    final countThreshold = front
-        ? frontDownDropFor(PushUpMode.floor)
-        : countAngleFor(PushUpMode.floor, widget.placement);
-    final suggested = front
-        ? _signalMin + (_signalMax - _signalMin) * 0.2
-        : _signalMin + 10.0;
-
-    final range = _signalMax - _signalMin;
-    final fraction = ((signal - _signalMin) / range).clamp(0.0, 1.0);
-    final thresholdFrac =
-        ((countThreshold - _signalMin) / range).clamp(0.0, 1.0);
-    final isDeep = signal <= countThreshold;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Rango señal',
-              style: const TextStyle(color: Colors.white70, fontSize: 13),
-            ),
-            Text(
-              front
-                  ? '${_signalMin.toStringAsFixed(3)} → '
-                      '${_signalMax.toStringAsFixed(3)}'
-                  : '${_signalMin.toStringAsFixed(0)}° → '
-                      '${_signalMax.toStringAsFixed(0)}°',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        SizedBox(
-          height: 14,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final width = constraints.maxWidth;
-              return Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    width: double.infinity,
-                    height: 14,
-                    decoration: BoxDecoration(
-                      color: Colors.white12,
-                      borderRadius: BorderRadius.circular(7),
-                      border: Border.all(color: Colors.white24),
-                    ),
-                  ),
-                  Positioned(
-                    left: thresholdFrac * width - 2,
-                    child: Container(
-                      width: 2,
-                      height: 20,
-                      color: AppColors.warning,
-                    ),
-                  ),
-                  Positioned(
-                    left: fraction * width - 5,
-                    top: 1,
-                    child: Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: isDeep ? AppColors.success : Colors.white,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.black, width: 1.5),
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
-        const SizedBox(height: 6),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Mínimo observado',
-              style: const TextStyle(color: Colors.white70, fontSize: 12),
-            ),
-            Text(
-              'Cuenta sugerida ≤ ${front ? suggested.toStringAsFixed(2) : '${suggested.toStringAsFixed(0)}°'}',
-              style: const TextStyle(
-                color: AppColors.accent,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  String _visTag(Joint a, Joint b, String label) {
-    final visible = (a.visibility >= 0.3 || b.visibility >= 0.3);
-    return '$label:${visible ? 'SÍ' : 'no'}';
   }
 
   Widget _row(String label, String value, {Color? color}) {

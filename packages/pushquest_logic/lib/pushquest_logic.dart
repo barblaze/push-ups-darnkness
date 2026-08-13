@@ -1,5 +1,6 @@
 export 'src/avatar.dart';
 export 'src/challenges.dart';
+export 'src/depth_calibration.dart';
 export 'src/geometry.dart';
 export 'src/high_five.dart';
 export 'src/levels.dart';

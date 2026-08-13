@@ -34,7 +34,7 @@ class SessionRecord {
       startedAt: DateTime.fromMillisecondsSinceEpoch(json['d'] as int),
       mode: PushUpMode.values.asNameMap()[json['m']] ?? PushUpMode.floor,
       placement: CameraPlacement.values.asNameMap()[json['pl']] ??
-          CameraPlacement.profile,
+          CameraPlacement.front,
       reps: json['r'] as int,
       points: json['p'] as int,
       bestCombo: json['c'] as int,
@@ -62,6 +62,7 @@ class PersistedData {
     this.arcadeSensitivity = 50,
     this.hasSeenOnboarding = false,
     this.hapticsEnabled = true,
+    this.calibration,
   });
 
   final int totalReps;
@@ -81,6 +82,9 @@ class PersistedData {
   final CameraPlacement defaultPlacement;
   final bool hasSeenOnboarding;
   final bool hapticsEnabled;
+
+  /// Calibración guardada del rango real de movimiento (vista frontal).
+  final DepthCalibration? calibration;
 
   static const PersistedData empty = PersistedData(
     totalReps: 0,
@@ -128,6 +132,7 @@ class PersistedData {
         'defaultPlacement': defaultPlacement.name,
         'onboarded': hasSeenOnboarding,
         'haptics': hapticsEnabled,
+        'calib': calibration?.toJson(),
       };
 
   static PersistedData fromJson(Map<String, dynamic> json) {
@@ -154,6 +159,9 @@ class PersistedData {
               CameraPlacement.front,
       hasSeenOnboarding: json['onboarded'] as bool? ?? false,
       hapticsEnabled: json['haptics'] as bool? ?? true,
+      calibration: json['calib'] is Map<String, dynamic>
+          ? DepthCalibration.fromJson(json['calib'] as Map<String, dynamic>)
+          : null,
     );
   }
 }

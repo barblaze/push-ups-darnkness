@@ -3,286 +3,300 @@ import 'package:test/test.dart';
 
 import 'pose_builder.dart';
 
+PushUpCounter make({
+  PushUpMode mode = PushUpMode.floor,
+  DepthCalibration? calibration,
+  double filterStrength = 0.35,
+  int debounceFrames = 3,
+}) =>
+    PushUpCounter(
+      mode: mode,
+      calibration: calibration,
+      filterStrength: filterStrength,
+      debounceFrames: debounceFrames,
+    );
+
+/// Alimenta [pose] [times] veces.
+void feed(PushUpCounter c, PoseData pose, [int times = 8]) {
+  for (var i = 0; i < times; i++) {
+    c.update(pose);
+  }
+}
+
+/// Alimenta [pose] hasta que se completa una rep (máx. [maxFrames]).
+CompletedRep? completeRep(
+  PushUpCounter c,
+  PoseData pose, {
+  int maxFrames = 40,
+}) {
+  for (var i = 0; i < maxFrames; i++) {
+    final update = c.update(pose);
+    if (update.completedRep != null) return update.completedRep;
+  }
+  return null;
+}
+
 void main() {
   group('PushUpCounter', () {
     test('counts a clean floor rep', () {
-      final counter = PushUpCounter(mode: PushUpMode.floor);
-      counter.update(plankPose(elbowAngle: 165));
+      final counter = make();
+      feed(counter, frontPose(drop: 1.0));
       expect(counter.phase, CounterPhase.up);
-      counter.update(plankPose(elbowAngle: 90));
+      feed(counter, frontPose(drop: 0.3));
       expect(counter.phase, CounterPhase.down);
-      final update = counter.update(plankPose(elbowAngle: 165));
+      final rep = completeRep(counter, frontPose(drop: 1.0));
+      expect(counter.phase, CounterPhase.up);
       expect(counter.reps, 1);
-      expect(update.completedRep, isNotNull);
-      expect(update.completedRep!.isGood, isTrue);
-      expect(update.completedRep!.combo, 1);
-      expect(update.completedRep!.repNumber, 1);
+      expect(rep, isNotNull);
+      expect(rep!.isGood, isTrue);
+      expect(rep.combo, 1);
+      expect(rep.repNumber, 1);
     });
 
     test('does not count a shallow rep on floor', () {
-      final counter = PushUpCounter(mode: PushUpMode.floor);
-      counter.update(plankPose(elbowAngle: 165));
-      counter.update(plankPose(elbowAngle: 100));
+      final counter = make();
+      feed(counter, frontPose(drop: 1.0));
+      feed(counter, frontPose(drop: 0.65));
       expect(counter.phase, CounterPhase.up);
-      final update = counter.update(plankPose(elbowAngle: 165));
+      final rep = completeRep(counter, frontPose(drop: 1.0));
       expect(counter.reps, 0);
-      expect(update.completedRep, isNull);
+      expect(rep, isNull);
     });
 
     test('free mode counts a rep without requiring a plank', () {
-      final counter = PushUpCounter(mode: PushUpMode.free);
-      counter.update(plankPose(elbowAngle: 165, sag: 0.5));
-      counter.update(plankPose(elbowAngle: 100, sag: 0.5));
+      final counter = make(mode: PushUpMode.free);
+      feed(counter, frontPose(drop: 1.0));
+      feed(counter, frontPose(drop: 0.3));
       expect(counter.phase, CounterPhase.down);
-      final update = counter.update(plankPose(elbowAngle: 165, sag: 0.5));
+      final rep = completeRep(counter, frontPose(drop: 1.0));
       expect(counter.reps, 1);
-      expect(update.completedRep, isNotNull);
-      expect(update.completedRep!.points, 0);
-      expect(update.completedRep!.combo, 0);
-      expect(update.completedRep!.isGood, isTrue);
+      expect(rep, isNotNull);
+      expect(rep!.points, 0);
+      expect(rep.combo, 0);
+      expect(rep.isGood, isTrue);
     });
 
     test('free mode counts shallower reps', () {
-      final counter = PushUpCounter(mode: PushUpMode.free);
-      counter.update(plankPose(elbowAngle: 165));
-      counter.update(plankPose(elbowAngle: 105));
+      final counter = make(mode: PushUpMode.free);
+      feed(counter, frontPose(drop: 1.0));
+      feed(counter, frontPose(drop: 0.4));
       expect(counter.phase, CounterPhase.down);
-      final update = counter.update(plankPose(elbowAngle: 165));
+      final rep = completeRep(counter, frontPose(drop: 1.0));
       expect(counter.reps, 1);
-      expect(update.completedRep, isNotNull);
+      expect(rep, isNotNull);
     });
 
-    test('a sagging rep still counts but breaks the combo', () {
-      final counter = PushUpCounter(mode: PushUpMode.floor);
-      counter.update(plankPose(elbowAngle: 165));
-      counter.update(plankPose(elbowAngle: 90));
-      expect(counter.update(plankPose(elbowAngle: 165)).completedRep!.combo, 1);
-      counter.update(plankPose(elbowAngle: 165));
-      expect(counter.update(plankPose(elbowAngle: 90)).completedRep, isNull);
-      expect(counter.update(plankPose(elbowAngle: 165)).completedRep!.combo, 2);
-
-      counter.update(plankPose(elbowAngle: 165));
-      counter.update(plankPose(elbowAngle: 90, sag: 0.18));
-      final bad = counter.update(plankPose(elbowAngle: 165));
-      expect(bad.completedRep, isNotNull);
-      expect(bad.completedRep!.isGood, isFalse);
-      expect(counter.combo, 0);
+    test('encadena combos en reps seguidas', () {
+      final counter = make();
+      feed(counter, frontPose(drop: 1.0));
+      feed(counter, frontPose(drop: 0.3));
+      final first = completeRep(counter, frontPose(drop: 1.0));
+      expect(first!.combo, 1);
+      feed(counter, frontPose(drop: 1.0));
+      feed(counter, frontPose(drop: 0.3));
+      final second = completeRep(counter, frontPose(drop: 1.0));
+      expect(second, isNotNull);
+      expect(second!.combo, 2);
     });
 
     test('combo resets after a long pause', () {
-      final counter = PushUpCounter(mode: PushUpMode.floor);
-      counter.update(plankPose(elbowAngle: 165));
-      counter.update(plankPose(elbowAngle: 90));
-      expect(counter.update(plankPose(elbowAngle: 165)).completedRep!.combo, 1);
+      final counter = make();
+      feed(counter, frontPose(drop: 1.0));
+      feed(counter, frontPose(drop: 0.3));
+      completeRep(counter, frontPose(drop: 1.0));
+      expect(counter.combo, 1);
       final update =
-          counter.update(plankPose(elbowAngle: 165), elapsedSinceLastFrame: 12);
+          counter.update(frontPose(drop: 1.0), elapsedSinceLastFrame: 12);
       expect(counter.combo, 0);
       expect(update.completedRep, isNull);
     });
 
     test('reports body not visible', () {
-      final counter = PushUpCounter(mode: PushUpMode.floor);
+      final counter = make();
       final update = counter.update(invisible());
       expect(update.bodyVisible, isFalse);
       expect(update.feedback, FeedbackKind.notVisible);
     });
 
     test('feedback needDeeper when half down', () {
-      final counter = PushUpCounter(mode: PushUpMode.floor);
-      final update = counter.update(plankPose(elbowAngle: 120));
+      final counter = make();
+      final update = counter.update(frontPose(drop: 0.7));
       expect(update.feedback, FeedbackKind.needDeeper);
     });
 
     test('feedback great when deep in down phase', () {
-      final counter = PushUpCounter(mode: PushUpMode.floor);
-      counter.update(plankPose(elbowAngle: 165));
-      final update = counter.update(plankPose(elbowAngle: 85));
-      expect(update.phase, CounterPhase.down);
-      expect(update.feedback, FeedbackKind.great);
+      final counter = make();
+      feed(counter, frontPose(drop: 1.0));
+      feed(counter, frontPose(drop: 0.3), 8);
+      expect(counter.phase, CounterPhase.down);
+      final deep = counter.update(frontPose(drop: 0.3));
+      expect(deep.phase, CounterPhase.down);
+      expect(deep.feedback, FeedbackKind.great);
     });
 
-    test('feedback hipSag when hips drop', () {
-      final counter = PushUpCounter(mode: PushUpMode.floor);
-      final update = counter.update(plankPose(elbowAngle: 165, sag: 0.2));
-      expect(update.feedback, FeedbackKind.hipSag);
+    test('front ignores hip sag (no ankles needed)', () {
+      final counter = make();
+      final update = counter.update(frontPose(drop: 1.0));
+      expect(update.feedback, isNot(FeedbackKind.hipSag));
+      expect(update.sagRatio, 0.0);
+    });
+
+    test('requires hips visible', () {
+      final counter = make();
+      final update = counter.update(frontPose(drop: 1.0, hipsVisible: false));
+      expect(update.bodyVisible, isFalse);
+      expect(update.feedback, FeedbackKind.notVisible);
+    });
+
+    test('counts exactly one rep per down-up cycle with moving hips', () {
+      final counter = make();
+      for (final depth in [0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 0.8, 0.6, 0.4, 0.2, 0.0]) {
+        feed(counter, frontPoseReal(depth: depth), 5);
+      }
+      expect(counter.reps, 1);
+      expect(counter.phase, CounterPhase.up);
+    });
+
+    test('deep bottom with hips above shoulders does not double count', () {
+      final counter = make();
+      feed(counter, frontPose(drop: 1.0));
+      expect(counter.phase, CounterPhase.up);
+      feed(counter, frontBottomPose());
+      expect(counter.phase, CounterPhase.down);
+      final still = counter.update(frontBottomPose());
+      expect(counter.reps, 0);
+      expect(still.completedRep, isNull);
+      final rep = completeRep(counter, frontPose(drop: 1.0));
+      expect(counter.reps, 1);
+      expect(rep, isNotNull);
+    });
+
+    test('shallow rep with moving hips does not count', () {
+      final counter = make();
+      feed(counter, frontPoseReal(depth: 0.0));
+      feed(counter, frontPoseReal(depth: 0.2));
+      feed(counter, frontPoseReal(depth: 0.0));
+      expect(counter.reps, 0);
     });
 
     test('reset clears reps and combo', () {
-      final counter = PushUpCounter(mode: PushUpMode.floor);
-      counter.update(plankPose(elbowAngle: 165));
-      counter.update(plankPose(elbowAngle: 90));
-      counter.update(plankPose(elbowAngle: 165));
+      final counter = make();
+      feed(counter, frontPose(drop: 1.0));
+      feed(counter, frontPose(drop: 0.3));
+      completeRep(counter, frontPose(drop: 1.0));
       expect(counter.reps, 1);
       counter.reset();
       expect(counter.reps, 0);
       expect(counter.combo, 0);
     });
 
-    test('front placement counts a rep via shoulder drop', () {
-      final counter = PushUpCounter(
-        mode: PushUpMode.floor,
-        placement: CameraPlacement.front,
-      );
-      counter.update(frontPose(drop: 1.0));
-      expect(counter.phase, CounterPhase.up);
+    test('un destello de ruido bajo el umbral no cambia a down', () {
+      final counter = make();
+      feed(counter, frontPose(drop: 1.0));
       counter.update(frontPose(drop: 0.3));
-      expect(counter.phase, CounterPhase.down);
-      final update = counter.update(frontPose(drop: 1.0));
-      expect(counter.reps, 1);
-      expect(update.completedRep, isNotNull);
-      expect(update.bodyVisible, isTrue);
-    });
-
-    test('front free counts a shallower drop', () {
-      final counter = PushUpCounter(
-        mode: PushUpMode.free,
-        placement: CameraPlacement.front,
-      );
-      counter.update(frontPose(drop: 1.0));
-      counter.update(frontPose(drop: 0.5));
-      expect(counter.phase, CounterPhase.down);
-      final update = counter.update(frontPose(drop: 1.0));
-      expect(counter.reps, 1);
-      expect(update.completedRep, isNotNull);
-    });
-
-    test('front placement ignores hip sag without ankles', () {
-      final counter = PushUpCounter(
-        mode: PushUpMode.floor,
-        placement: CameraPlacement.front,
-      );
-      final update = counter.update(frontPose(drop: 1.0));
-      expect(update.feedback, isNot(FeedbackKind.hipSag));
-      expect(update.sagRatio, 0.0);
-    });
-
-    test('front placement requires hips visible', () {
-      final counter = PushUpCounter(
-        mode: PushUpMode.floor,
-        placement: CameraPlacement.front,
-      );
-      final update = counter.update(frontPose(drop: 1.0, hipsVisible: false));
-      expect(update.bodyVisible, isFalse);
-      expect(update.feedback, FeedbackKind.notVisible);
-    });
-
-    test('front counts exactly one rep per down-up cycle with moving hips', () {
-      final counter = PushUpCounter(
-        mode: PushUpMode.floor,
-        placement: CameraPlacement.front,
-      );
-      for (final depth in [0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 0.8, 0.6, 0.4, 0.2, 0.0]) {
-        counter.update(frontPoseReal(depth: depth));
-      }
-      expect(counter.reps, 1);
+      feed(counter, frontPose(drop: 1.0));
       expect(counter.phase, CounterPhase.up);
+      expect(counter.reps, 0);
     });
 
-    test('front deep bottom with hips above shoulders does not double count', () {
-      final counter = PushUpCounter(
-        mode: PushUpMode.floor,
-        placement: CameraPlacement.front,
-      );
+    test('un destello de ruido en down no completa la rep antes de tiempo', () {
+      final counter = make();
+      feed(counter, frontPose(drop: 1.0));
+      feed(counter, frontPose(drop: 0.3));
+      expect(counter.phase, CounterPhase.down);
       counter.update(frontPose(drop: 1.0));
-      expect(counter.phase, CounterPhase.up);
-      counter.update(frontBottomPose());
-      expect(counter.phase, CounterPhase.down);
-      final update = counter.update(frontBottomPose());
-      expect(counter.reps, 0);
-      expect(update.completedRep, isNull);
-      final done = counter.update(frontPose(drop: 1.0));
+      feed(counter, frontPose(drop: 0.3));
+      final rep = completeRep(counter, frontPose(drop: 1.0));
       expect(counter.reps, 1);
-      expect(done.completedRep, isNotNull);
+      expect(rep, isNotNull);
+    });
+  });
+
+  group('PushUpCounter calibración', () {
+    test('sin calibración usa los umbrales fijos', () {
+      final counter = make();
+      expect(counter.calibrated, isFalse);
+      expect(counter.downThreshold, closeTo(0.55, 1e-9));
+      expect(counter.upThreshold, closeTo(0.85, 1e-9));
     });
 
-    test('front shallow rep with moving hips does not count', () {
-      final counter = PushUpCounter(
-        mode: PushUpMode.floor,
-        placement: CameraPlacement.front,
+    test('deriva los umbrales del rango real del usuario', () {
+      final cal = DepthCalibration(
+        upSignal: 1.0,
+        downSignal: 0.6,
+        calibratedAt: DateTime(2026, 8, 1),
       );
-      counter.update(frontPoseReal(depth: 0.0));
-      counter.update(frontPoseReal(depth: 0.2));
-      counter.update(frontPoseReal(depth: 0.0));
-      expect(counter.reps, 0);
-    });
+      final counter = make(calibration: cal, filterStrength: 1.0);
+      expect(counter.calibrated, isTrue);
+      // down = 0.6 + 0.15 * 0.4 = 0.66; up = 1.0 - 0.15 * 0.4 = 0.94.
+      expect(counter.downThreshold, closeTo(0.66, 1e-9));
+      expect(counter.upThreshold, closeTo(0.94, 1e-9));
 
-    test('profile counts a plank rep without ankles visible', () {
-      final counter = PushUpCounter(mode: PushUpMode.floor);
-      counter.update(plankPose(elbowAngle: 165, ankles: false));
-      counter.update(plankPose(elbowAngle: 90, ankles: false));
+      feed(counter, frontPose(drop: 1.0));
+      feed(counter, frontPose(drop: 0.62));
       expect(counter.phase, CounterPhase.down);
-      final update = counter.update(plankPose(elbowAngle: 165, ankles: false));
+      final rep = completeRep(counter, frontPose(drop: 1.0));
       expect(counter.reps, 1);
-      expect(update.completedRep, isNotNull);
-      expect(update.bodyVisible, isTrue);
+      expect(rep, isNotNull);
     });
 
-    test('profile still requires a plank to count', () {
-      final counter = PushUpCounter(mode: PushUpMode.floor);
-      final update = counter.update(frontPose(drop: 1.0));
-      expect(update.bodyVisible, isTrue);
+    test('una bajada fuera del rango real no cuenta con calibración', () {
+      final cal = DepthCalibration(
+        upSignal: 1.0,
+        downSignal: 0.6,
+        calibratedAt: DateTime(2026, 8, 1),
+      );
+      final counter = make(calibration: cal, filterStrength: 1.0);
+      feed(counter, frontPose(drop: 1.0));
+      feed(counter, frontPose(drop: 0.7));
+      expect(counter.phase, CounterPhase.up);
+      final rep = completeRep(counter, frontPose(drop: 1.0));
       expect(counter.reps, 0);
-      expect(update.feedback, FeedbackKind.notPlank);
+      expect(rep, isNull);
     });
 
-    test('feedback hipSag is aligned with the quality threshold', () {
-      final counter = PushUpCounter(mode: PushUpMode.floor);
-      final update = counter.update(plankPose(elbowAngle: 165, sag: 0.14));
-      expect(update.feedback, FeedbackKind.hipSag);
+    test('calibración inválida cae a los umbrales fijos', () {
+      final cal = DepthCalibration(
+        upSignal: 0.6,
+        downSignal: 0.5,
+        calibratedAt: DateTime(2026, 8, 1),
+      );
+      final counter = make(calibration: cal);
+      expect(counter.calibrated, isFalse);
+      expect(counter.downThreshold, closeTo(0.55, 1e-9));
+      expect(counter.upThreshold, closeTo(0.85, 1e-9));
     });
   });
 
   group('PushUpCounter parallel', () {
     test('counts a clean dip without requiring a plank', () {
-      final counter = PushUpCounter(mode: PushUpMode.parallel);
-      counter.update(parallelPose(elbowAngle: 165));
+      final counter = make(mode: PushUpMode.parallel);
+      feed(counter, frontPose(drop: 1.0));
       expect(counter.phase, CounterPhase.up);
-      counter.update(parallelPose(elbowAngle: 90));
+      feed(counter, frontPose(drop: 0.3));
       expect(counter.phase, CounterPhase.down);
-      final update = counter.update(parallelPose(elbowAngle: 165));
+      final rep = completeRep(counter, frontPose(drop: 1.0));
       expect(counter.reps, 1);
-      expect(update.completedRep, isNotNull);
-      expect(update.completedRep!.isGood, isTrue);
-      expect(update.completedRep!.points, greaterThan(0));
-      expect(update.completedRep!.combo, 1);
+      expect(rep, isNotNull);
+      expect(rep!.isGood, isTrue);
+      expect(rep.points, greaterThan(0));
+      expect(rep.combo, 1);
     });
 
     test('does not count a shallow dip', () {
-      final counter = PushUpCounter(mode: PushUpMode.parallel);
-      counter.update(parallelPose(elbowAngle: 165));
-      counter.update(parallelPose(elbowAngle: 115));
+      final counter = make(mode: PushUpMode.parallel);
+      feed(counter, frontPose(drop: 1.0));
+      feed(counter, frontPose(drop: 0.65));
       expect(counter.phase, CounterPhase.up);
-      final update = counter.update(parallelPose(elbowAngle: 165));
+      final rep = completeRep(counter, frontPose(drop: 1.0));
       expect(counter.reps, 0);
-      expect(update.completedRep, isNull);
+      expect(rep, isNull);
     });
 
-    test('counts a dip without ankles visible', () {
-      final counter = PushUpCounter(mode: PushUpMode.parallel);
-      counter.update(parallelPose(elbowAngle: 165, ankles: false));
-      counter.update(parallelPose(elbowAngle: 90, ankles: false));
-      final update = counter.update(parallelPose(elbowAngle: 165, ankles: false));
-      expect(counter.reps, 1);
-      expect(update.completedRep, isNotNull);
-    });
-
-    test('never reports notPlank', () {
-      final counter = PushUpCounter(mode: PushUpMode.parallel);
-      final update = counter.update(parallelPose(elbowAngle: 165));
-      expect(update.feedback, isNot(FeedbackKind.notPlank));
-    });
-
-    test('front placement counts a rep via shoulder drop', () {
-      final counter = PushUpCounter(
-        mode: PushUpMode.parallel,
-        placement: CameraPlacement.front,
-      );
-      counter.update(frontPose(drop: 1.0));
-      counter.update(frontPose(drop: 0.3));
-      expect(counter.phase, CounterPhase.down);
+    test('parallel never gates on plank', () {
+      final counter = make(mode: PushUpMode.parallel);
       final update = counter.update(frontPose(drop: 1.0));
-      expect(counter.reps, 1);
-      expect(update.completedRep, isNotNull);
+      expect(update.feedback, isNot(FeedbackKind.notVisible));
     });
   });
 }

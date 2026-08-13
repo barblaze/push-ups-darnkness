@@ -21,12 +21,10 @@ class WorkoutScreen extends StatefulWidget {
     super.key,
     required this.state,
     required this.mode,
-    required this.placement,
   });
 
   final GameState state;
   final PushUpMode mode;
-  final CameraPlacement placement;
 
   @override
   State<WorkoutScreen> createState() => _WorkoutScreenState();
@@ -73,7 +71,10 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   void initState() {
     super.initState();
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-    _counter = PushUpCounter(mode: widget.mode, placement: widget.placement);
+    _counter = PushUpCounter(
+      mode: widget.mode,
+      calibration: widget.state.calibration,
+    );
     _init();
   }
 
@@ -288,7 +289,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
     final summary = WorkoutSummary(
       startedAt: _sessionStart ?? DateTime.now(),
       mode: widget.mode,
-      placement: widget.placement,
+      placement: CameraPlacement.front,
       reps: _counter.reps,
       points: _totalPoints,
       bestCombo: _bestCombo,
@@ -471,9 +472,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
 
   Widget _countdownOverlay() {
     final pose = _lastPose;
-    final analysis = pose == null
-        ? null
-        : analyzeBody(pose, placement: widget.placement);
+    final analysis = pose == null ? null : analyzeBody(pose);
     final bodyOk = analysis?.bodyVisible ?? false;
     final requiresPlank = widget.mode == PushUpMode.floor;
     final positionOk =
@@ -652,9 +651,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            widget.placement == CameraPlacement.profile
-                ? widget.mode.positionHint
-                : widget.placement.positionHint,
+            widget.mode.positionHint,
             textAlign: TextAlign.center,
             style: const TextStyle(color: Colors.white70, fontSize: 13),
           ),

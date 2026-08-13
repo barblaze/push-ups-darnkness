@@ -38,8 +38,6 @@ class HomeScreen extends StatelessWidget {
                   const SizedBox(height: 16),
                   _arcadeCard(context),
                   const SizedBox(height: 16),
-                  _placementSelector(),
-                  const SizedBox(height: 16),
                   _missionCard(mission),
                   const SizedBox(height: 16),
                   _weeklyCard(),
@@ -52,13 +50,11 @@ class HomeScreen extends StatelessWidget {
                   OutlinedButton.icon(
                     onPressed: () => Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => CalibrationScreen(
-                          placement: state.defaultPlacement,
-                        ),
+                        builder: (_) => CalibrationScreen(state: state),
                       ),
                     ),
-                    icon: const Icon(Icons.science_outlined),
-                    label: const Text('Probar detección'),
+                    icon: const Icon(Icons.tune),
+                    label: const Text('Calibrar'),
                   ),
                   const SizedBox(height: 20),
                   _navRow(context),
@@ -77,7 +73,6 @@ class HomeScreen extends StatelessWidget {
         builder: (_) => WorkoutScreen(
           state: state,
           mode: state.defaultMode,
-          placement: state.defaultPlacement,
         ),
       ),
     );
@@ -231,10 +226,7 @@ class HomeScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => ArcadeScreen(
-              state: state,
-              placement: state.defaultPlacement,
-            ),
+            builder: (_) => ArcadeScreen(state: state),
           ),
         ),
         child: Padding(
@@ -278,51 +270,6 @@ class HomeScreen extends StatelessWidget {
               const Icon(Icons.chevron_right, color: AppColors.textSecondary),
             ],
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _placementSelector() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Posición de cámara',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: SegmentedButton<CameraPlacement>(
-                segments: [
-                  for (final placement in CameraPlacement.values)
-                    ButtonSegment(
-                      value: placement,
-                      label:
-                          Text('${placement.icon} ${placement.label}'),
-                    ),
-                ],
-                selected: {state.defaultPlacement},
-                onSelectionChanged: (selection) =>
-                    state.setDefaultPlacement(selection.first),
-                showSelectedIcon: false,
-                style: SegmentedButton.styleFrom(
-                  backgroundColor: AppColors.surfaceAlt,
-                  selectedBackgroundColor: AppColors.accent,
-                  foregroundColor: AppColors.textSecondary,
-                  selectedForegroundColor: Colors.white,
-                ),
-              ),
-            ),
-          ],
         ),
       ),
     );

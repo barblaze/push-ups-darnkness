@@ -6,9 +6,7 @@ import '../theme/app_theme.dart';
 (String, Color) feedbackFor(FrameUpdate update) {
   switch (update.feedback) {
     case FeedbackKind.notVisible:
-      return ('Colócate frente a la cámara', AppColors.textSecondary);
-    case FeedbackKind.notPlank:
-      return ('Cadera alta: mantén la plancha', AppColors.warning);
+      return ('Entra en cuadro', AppColors.danger);
     case FeedbackKind.hipSag:
       return ('No hundas la cadera', AppColors.warning);
     case FeedbackKind.hipPike:

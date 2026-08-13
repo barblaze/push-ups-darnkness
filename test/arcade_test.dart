@@ -128,6 +128,9 @@ void main() {
       g.feedDepth(1.0);
       g.feedDepth(1.0);
       g.feedDepth(1.0);
+      g.feedDepth(1.0);
+      g.feedDepth(1.0);
+      g.feedDepth(1.0);
       expect(g.filteredDepth, greaterThan(0.95));
 
       // Un frame ruidoso no debe desplazar apenas el control.
@@ -153,46 +156,42 @@ void main() {
       expect(g.targetAltitude, closeTo(0.10, 0.02));
     });
 
-    test('calibración mapea el rango real del jugador al control completo',
-        () {
+    test('mapea los extremos del movimiento en vivo', () {
       final g = game();
-      g.startCalibration();
-      g.feedCalibration(0.1);
-      g.feedCalibration(0.9);
-      g.endCalibration();
-
-      g.feedDepth(0.1);
-      for (var i = 0; i < 6; i++) {
+      for (var i = 0; i < 10; i++) {
         g.feedDepth(0.1);
       }
-      expect(g.filteredDepth, lessThan(0.05));
-      expect(g.targetAltitude, closeTo(0.10, 0.02));
+      expect(g.filteredDepth, lessThan(0.2));
+      expect(g.targetAltitude, lessThan(0.4));
 
-      for (var i = 0; i < 8; i++) {
+      for (var i = 0; i < 10; i++) {
         g.feedDepth(0.9);
       }
-      expect(g.filteredDepth, greaterThan(0.95));
-      expect(g.targetAltitude, closeTo(0.90, 0.02));
+      expect(g.filteredDepth, greaterThan(0.8));
+      expect(g.targetAltitude, greaterThan(0.6));
     });
 
-    test('calibración degenerada cae al rango completo', () {
+    test('rango degenerado (apenas se mueve) usa el rango completo', () {
       final g = game();
-      g.startCalibration();
-      g.feedCalibration(0.5);
-      g.feedCalibration(0.6);
-      g.endCalibration();
-      for (var i = 0; i < 10; i++) {
+      for (var i = 0; i < 25; i++) {
         g.feedDepth(0.55);
       }
       expect(g.filteredDepth, closeTo(0.55, 0.05));
       expect(g.targetAltitude, closeTo(0.5, 0.1));
     });
 
-    test('feedDepth no hace nada durante la calibración', () {
+    test('se adapta al nuevo rango sin reiniciar', () {
       final g = game();
-      g.startCalibration();
-      g.feedDepth(0.9);
-      expect(g.filteredDepth, 0.5);
+      for (var i = 0; i < 10; i++) {
+        g.feedDepth(0.2);
+      }
+      final shallow = g.filteredDepth;
+      // El jugador baja su rango y la normalización lo sigue en vivo.
+      for (var i = 0; i < 10; i++) {
+        g.feedDepth(0.6);
+      }
+      expect(g.filteredDepth, greaterThan(shallow));
+      expect(g.filteredDepth, greaterThan(0.5));
     });
   });
 

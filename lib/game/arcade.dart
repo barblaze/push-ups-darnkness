@@ -75,6 +75,7 @@ class ArcadeGame {
     hitAt = -100;
     gameOverAt = 0;
     obstacles.clear();
+    _resetCalibration();
   }
 
   final ArcadeConfig _config;
@@ -142,60 +143,48 @@ class ArcadeGame {
   double get filteredDepth => _filteredDepth;
 
   // Filtro de entrada: elimina el jitter de la pose.
-  static const double _inputFilterK = 0.5;
+  static const double _inputFilterK = 0.35;
   static const double _depthDeadband = 0.02;
 
-  // Calibración al rango real de profundidad del jugador.
-  bool _calibrating = false;
-  double _calMin = 1;
-  double _calMax = 0;
-  double _calLo = 0;
-  double _calHi = 1;
-  bool _calibrated = false;
+  // Calibración adaptativa al rango real de profundidad del jugador. En vez de
+  // un snapshot de unos segundos, los límites se persiguen en vivo: al acercarse
+  // a un extremo se ajustan rápido y se relajan lentamente mientras no se repiten,
+  // de modo que el personaje siempre mapea el movimiento actual del cuerpo.
+  double _calMin = 0;
+  double _calMax = 1;
+  static const double _adaptFast = 0.35;
+  static const double _adaptSlow = 0.02;
+  static const double _minAdaptRange = 0.15;
 
-  /// Arranca la calibración (llamar al inicio del countdown).
-  void startCalibration() {
-    _calibrating = true;
-    _calibrated = false;
-    _calMin = 1;
-    _calMax = 0;
+  void _resetCalibration() {
+    _calMin = 0;
+    _calMax = 1;
     _filteredDepth = 0.5;
   }
 
-  /// Alimenta la profundidad cruda durante la calibración.
-  void feedCalibration(double depthRatio) {
-    if (!_calibrating) return;
-    final c = depthRatio.clamp(0.0, 1.0);
-    _calMin = math.min(_calMin, c);
-    _calMax = math.max(_calMax, c);
-  }
-
-  /// Termina la calibración: fija el rango capturado al espacio de control.
-  void endCalibration() {
-    _calibrating = false;
-    var lo = _calMin;
-    var hi = _calMax;
+  void _adaptRange(double r) {
+    _calMin += (r < _calMin ? _adaptFast : _adaptSlow) * (r - _calMin);
+    _calMax += (r > _calMax ? _adaptFast : _adaptSlow) * (r - _calMax);
     // Rango insuficiente (apenas se movió): caer al rango completo.
-    if (hi - lo < 0.15) {
-      lo = 0;
-      hi = 1;
+    if (_calMax - _calMin < _minAdaptRange) {
+      _calMin = 0;
+      _calMax = 1;
     }
-    _calLo = lo;
-    _calHi = hi;
-    _calibrated = true;
   }
 
-  double _normalizedDepth(double raw) {
-    final r = raw.clamp(0.0, 1.0);
-    if (!_calibrated) return r;
-    return ((r - _calLo) / (_calHi - _calLo)).clamp(0.0, 1.0);
+  double _normalizedDepth(double r) {
+    final range = _calMax - _calMin;
+    if (range < _minAdaptRange) return r;
+    return ((r - _calMin) / range).clamp(0.0, 1.0);
   }
 
-  /// Alimenta la profundidad cruda de la pose: normaliza con la calibración,
-  /// ignora cambios mínimos (deadband) y suaviza el resto.
+  /// Alimenta la profundidad de la pose: adapta el rango en vivo, ignora
+  /// cambios mínimos (deadband) y suaviza el resto.
   void feedDepth(double depthRatio) {
-    if (_calibrating || gameOver) return;
-    final n = _normalizedDepth(depthRatio);
+    if (gameOver) return;
+    final r = depthRatio.clamp(0.0, 1.0);
+    _adaptRange(r);
+    final n = _normalizedDepth(r);
     if ((n - _filteredDepth).abs() < _depthDeadband) return;
     _filteredDepth += (n - _filteredDepth) * _inputFilterK;
   }

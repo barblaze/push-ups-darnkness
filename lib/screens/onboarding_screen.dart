@@ -27,11 +27,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       accent: AppColors.primary,
     ),
     _OnboardingPageData(
-      emoji: '🤸',
-      title: 'Posición de la cámara',
+      emoji: '🤳',
+      title: 'Cámara de frente',
       subtitle:
-          'Elige "De frente" (celular frente a ti) o "Perfil" (celular de lado). '
-          'Coloca el celular apoyado y entra completo en cuadro.',
+          'Coloca el celular vertical y de frente a ti, apoyado y con todo tu '
+          'cuerpo en cuadro. Usa "Calibrar" para ajustar el conteo a tu rango.',
       accent: AppColors.accent,
     ),
     _OnboardingPageData(

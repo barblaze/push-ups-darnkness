@@ -25,11 +25,9 @@ class ArcadeScreen extends StatefulWidget {
   const ArcadeScreen({
     super.key,
     required this.state,
-    required this.placement,
   });
 
   final GameState state;
-  final CameraPlacement placement;
 
   @override
   State<ArcadeScreen> createState() => _ArcadeScreenState();
@@ -65,7 +63,7 @@ class _ArcadeScreenState extends State<ArcadeScreen>
     super.initState();
     _counter = PushUpCounter(
       mode: PushUpMode.arcade,
-      placement: widget.placement,
+      calibration: widget.state.calibration,
     );
     _game.setSensitivity(widget.state.arcadeSensitivity);
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
@@ -134,7 +132,6 @@ class _ArcadeScreenState extends State<ArcadeScreen>
       _countdown = 3;
       _phase = _ArcadePhase.countdown;
     });
-    _game.startCalibration();
     _countdownTimer?.cancel();
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) return;
@@ -147,7 +144,6 @@ class _ArcadeScreenState extends State<ArcadeScreen>
           _phase = _ArcadePhase.playing;
           _sessionStart = DateTime.now();
         });
-        _game.endCalibration();
         _game.reset();
         _bestCombo = 0;
       }
@@ -168,11 +164,7 @@ class _ArcadeScreenState extends State<ArcadeScreen>
         _bestCombo = math.max(_bestCombo, update.combo);
         if (update.completedRep != null) Haptics.rep();
         if (update.bodyVisible) {
-          if (_phase == _ArcadePhase.countdown) {
-            _game.feedCalibration(update.depthRatio);
-          } else {
-            _game.feedDepth(update.depthRatio);
-          }
+          _game.feedDepth(update.depthRatio);
         }
         if (mounted) {
           setState(() {
@@ -243,7 +235,7 @@ class _ArcadeScreenState extends State<ArcadeScreen>
     final summary = WorkoutSummary(
       startedAt: _sessionStart ?? DateTime.now(),
       mode: PushUpMode.arcade,
-      placement: widget.placement,
+      placement: CameraPlacement.front,
       reps: _counter.reps,
       points: _game.score * 10,
       bestCombo: _bestCombo,

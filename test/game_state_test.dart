@@ -16,7 +16,7 @@ void main() {
           WorkoutSummary(
             startedAt: DateTime(2026, 7, 31),
             mode: PushUpMode.floor,
-            placement: CameraPlacement.profile,
+            placement: CameraPlacement.front,
             reps: 10,
             points: 80,
             bestCombo: 3,
@@ -66,7 +66,7 @@ void main() {
         WorkoutSummary(
           startedAt: DateTime.now(),
           mode: PushUpMode.floor,
-          placement: CameraPlacement.profile,
+          placement: CameraPlacement.front,
           reps: 5,
           points: 30,
           bestCombo: 2,
@@ -87,7 +87,7 @@ void main() {
         WorkoutSummary(
           startedAt: DateTime(2026, 7, 31),
           mode: PushUpMode.floor,
-          placement: CameraPlacement.profile,
+          placement: CameraPlacement.front,
           reps: 20,
           points: 150,
           bestCombo: 10,
@@ -103,7 +103,7 @@ void main() {
         WorkoutSummary(
           startedAt: DateTime(2026, 7, 31),
           mode: PushUpMode.floor,
-          placement: CameraPlacement.profile,
+          placement: CameraPlacement.front,
           reps: 0,
           points: 0,
           bestCombo: 0,
@@ -122,14 +122,28 @@ void main() {
       expect(storage.data.defaultMode, PushUpMode.free);
     });
 
-    test('default placement can be changed and persists', () async {
+    test('default placement stays front', () async {
       final storage = MemoryGameStorage();
       final state = await GameState.load(storage: storage);
 
       expect(state.defaultPlacement, CameraPlacement.front);
-      await state.setDefaultPlacement(CameraPlacement.profile);
-      expect(state.defaultPlacement, CameraPlacement.profile);
-      expect(storage.data.defaultPlacement, CameraPlacement.profile);
+      expect(storage.data.defaultPlacement, CameraPlacement.front);
+    });
+
+    test('calibration can be saved and persists', () async {
+      final storage = MemoryGameStorage();
+      final state = await GameState.load(storage: storage);
+
+      final cal = DepthCalibration(
+        upSignal: 0.98,
+        downSignal: 0.31,
+        calibratedAt: DateTime(2026, 8, 13),
+      );
+      await state.saveCalibration(cal);
+      expect(state.calibration, isNotNull);
+      expect(state.calibration!.upSignal, closeTo(0.98, 1e-9));
+      expect(state.calibration!.downSignal, closeTo(0.31, 1e-9));
+      expect(storage.data.calibration, isNotNull);
     });
 
     test('parallel reps accumulate only in parallel mode', () async {
@@ -139,7 +153,7 @@ void main() {
         WorkoutSummary(
           startedAt: DateTime(2026, 7, 31),
           mode: PushUpMode.parallel,
-          placement: CameraPlacement.profile,
+          placement: CameraPlacement.front,
           reps: 20,
           points: 100,
           bestCombo: 4,
@@ -218,7 +232,7 @@ void main() {
           SessionRecord(
             startedAt: DateTime(2026, 7, 31, 10, 30),
             mode: PushUpMode.floor,
-            placement: CameraPlacement.profile,
+            placement: CameraPlacement.front,
             reps: 25,
             points: 180,
             bestCombo: 6,
@@ -241,7 +255,51 @@ void main() {
       expect(decoded.sessions.length, 1);
       expect(decoded.sessions.first.reps, 25);
       expect(decoded.sessions.first.mode, PushUpMode.floor);
-      expect(decoded.sessions.first.placement, CameraPlacement.profile);
+      expect(decoded.sessions.first.placement, CameraPlacement.front);
+    });
+
+    test('calibration survives json encode/decode', () {
+      final original = PersistedData(
+        totalReps: 0,
+        totalXp: 0,
+        bestSessionReps: 0,
+        bestCombo: 0,
+        streakDays: 0,
+        floorReps: 0,
+        sessionsCount: 0,
+        daysActive: 0,
+        lastActiveDate: null,
+        sessions: const [],
+        defaultMode: PushUpMode.floor,
+        defaultPlacement: CameraPlacement.front,
+        calibration: DepthCalibration(
+          upSignal: 1.02,
+          downSignal: 0.28,
+          calibratedAt: DateTime(2026, 8, 13, 10, 30),
+        ),
+      );
+
+      final decoded = PersistedData.fromJson(original.toJson());
+      expect(decoded.calibration, isNotNull);
+      expect(decoded.calibration!.upSignal, closeTo(1.02, 1e-9));
+      expect(decoded.calibration!.downSignal, closeTo(0.28, 1e-9));
+      expect(
+        decoded.calibration!.calibratedAt,
+        DateTime(2026, 8, 13, 10, 30),
+      );
+    });
+
+    test('legacy profile placement parses as front', () {
+      final decoded = SessionRecord.fromJson({
+        'd': DateTime(2026, 8, 13).millisecondsSinceEpoch,
+        'm': 'floor',
+        'pl': 'profile',
+        'r': 10,
+        'p': 80,
+        'c': 2,
+        's': 60,
+      });
+      expect(decoded.placement, CameraPlacement.front);
     });
   });
 }
