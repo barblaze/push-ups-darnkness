@@ -69,6 +69,10 @@ class ArcadeGame {
     _invulnUntil = 0;
     _speed = _config.scrollSpeed;
     _distance = -_config.firstSpawnDelay;
+    birdVelocity = 0;
+    lastPassAt = -100;
+    hitAt = -100;
+    gameOverAt = 0;
     obstacles.clear();
   }
 
@@ -89,6 +93,18 @@ class ArcadeGame {
   double _distance = 0;
   double _lastTarget = 0.5;
   double _invulnUntil = 0;
+
+  /// Variación de altitud por segundo (signado, para inclinación/squash).
+  double birdVelocity = 0;
+
+  /// Momento del último pilar superado (para el pop del marcador).
+  double lastPassAt = -100;
+
+  /// Momento del último golpe (para shake, flash y cara de daño).
+  double hitAt = -100;
+
+  /// Momento en que empezó el game over (para la animación de muerte).
+  double gameOverAt = 0;
 
   final List<ArcadeObstacle> obstacles = [];
 
@@ -111,6 +127,12 @@ class ArcadeGame {
     _applyStart();
   }
 
+  /// Avanza solo el reloj visual (animación de muerte, cielo, nubes)
+  /// después del game over, cuando `update()` ya no simula.
+  void tick(double dt) {
+    elapsed += dt;
+  }
+
   /// Avanza la simulación.
   ///
   /// [targetAltitude] es la altura a la que debe ir el pájaro (control
@@ -129,8 +151,10 @@ class ArcadeGame {
       _lastTarget = targetAltitude.clamp(0.06, 0.94);
     }
     _target = _lastTarget;
+    final previous = altitude;
     final t = 1 - math.exp(-_config.controlSmoothing * dt);
     altitude += (_target - altitude) * t;
+    birdVelocity = dt > 0 ? (altitude - previous) / dt : 0;
 
     _speed = math.min(
       _config.scrollSpeed + score * _config.speedRamp,
@@ -152,15 +176,18 @@ class ArcadeGame {
       if (!obstacle.counted && obstacle.x + 0.02 < birdX) {
         obstacle.counted = true;
         score += 1;
+        lastPassAt = elapsed;
         event = ArcadeEvent.passed;
       }
     }
 
     if (!invulnerable && _hitsObstacle()) {
       lives -= 1;
+      hitAt = elapsed;
       _invulnUntil = elapsed + _config.invulnerabilitySeconds;
       if (lives <= 0) {
         gameOver = true;
+        gameOverAt = elapsed;
         return ArcadeEvent.hit;
       }
       event = ArcadeEvent.hit;

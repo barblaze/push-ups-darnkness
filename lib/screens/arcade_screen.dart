@@ -14,6 +14,7 @@ import '../pose/pose_detector_service.dart';
 import '../state/game_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/arcade_painter.dart';
+import '../widgets/confetti_burst.dart';
 import '../widgets/haptics.dart';
 import '../widgets/pose_overlay_painter.dart';
 import 'results_screen.dart';
@@ -217,6 +218,10 @@ class _ArcadeScreenState extends State<ArcadeScreen>
       }
       setState(() {});
     }
+    if (_phase == _ArcadePhase.gameOver) {
+      _game.tick(dt.clamp(0.0, 0.05));
+      setState(() {});
+    }
   }
 
   Future<void> _finish() async {
@@ -279,11 +284,19 @@ class _ArcadeScreenState extends State<ArcadeScreen>
             ),
           ),
         CustomPaint(
-          painter: ArcadePainter(game: _game, emoji: widget.state.avatar.emoji),
+          painter: ArcadePainter(
+            game: _game,
+            characterColor: Color(widget.state.avatar.color),
+            bestScore: widget.state.arcadeBest,
+          ),
         ),
         SafeArea(child: _hud()),
         if (_phase == _ArcadePhase.countdown) _countdownOverlay(),
-        if (_phase == _ArcadePhase.gameOver) _gameOverOverlay(),
+        if (_phase == _ArcadePhase.gameOver) ...[
+          _gameOverOverlay(),
+          if (_game.score > widget.state.arcadeBest)
+            const IgnorePointer(child: ConfettiBurst()),
+        ],
         if (_paused && _phase != _ArcadePhase.gameOver) _pauseOverlay(),
       ],
     );
@@ -310,6 +323,11 @@ class _ArcadeScreenState extends State<ArcadeScreen>
                 style: IconButton.styleFrom(backgroundColor: Colors.black45),
               ),
               const Spacer(),
+              _hudChip(
+                '🏆',
+                '${math.max(_game.score, widget.state.arcadeBest)}',
+              ),
+              const SizedBox(width: 8),
               if (_phase == _ArcadePhase.playing)
                 _hudChip(
                   '🤸',
@@ -381,16 +399,24 @@ class _ArcadeScreenState extends State<ArcadeScreen>
               ),
             ),
             const SizedBox(height: 4),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                '$_countdown',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 110,
-                  fontWeight: FontWeight.w900,
-                  height: 1.1,
-                  shadows: [Shadow(color: Colors.black87, blurRadius: 16)],
+            TweenAnimationBuilder<double>(
+              key: ValueKey(_countdown),
+              tween: Tween(begin: 0.7, end: 1),
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOutBack,
+              builder: (context, value, child) =>
+                  Transform.scale(scale: value, child: child),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  '$_countdown',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 110,
+                    fontWeight: FontWeight.w900,
+                    height: 1.1,
+                    shadows: [Shadow(color: Colors.black87, blurRadius: 16)],
+                  ),
                 ),
               ),
             ),
@@ -419,6 +445,8 @@ class _ArcadeScreenState extends State<ArcadeScreen>
   }
 
   Widget _gameOverOverlay() {
+    final score = _game.score;
+    final newBest = score > widget.state.arcadeBest;
     return Container(
       color: Colors.black.withValues(alpha: 0.7),
       alignment: Alignment.center,
@@ -427,14 +455,23 @@ class _ArcadeScreenState extends State<ArcadeScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Text('🕊️', style: TextStyle(fontSize: 56)),
-            const SizedBox(height: 12),
+            Text(_medal(), style: const TextStyle(fontSize: 64)),
+            const SizedBox(height: 8),
             Text(
-              'Puntaje: ${_game.score}',
+              'Puntaje: $score',
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 30,
+                fontSize: 32,
                 fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              newBest ? '¡NUEVO RÉCORD! 🎉' : 'Mejor: ${widget.state.arcadeBest}',
+              style: TextStyle(
+                color: newBest ? AppColors.warning : Colors.white70,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
               ),
             ),
             const SizedBox(height: 6),
@@ -444,7 +481,15 @@ class _ArcadeScreenState extends State<ArcadeScreen>
             ),
             const SizedBox(height: 28),
             FilledButton(
+              onPressed: _replay,
+              child: const Text('JUGAR DE NUEVO'),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton(
               onPressed: _finish,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.textPrimary,
+              ),
               child: const Text('VER RESULTADOS'),
             ),
             const SizedBox(height: 10),
@@ -458,6 +503,22 @@ class _ArcadeScreenState extends State<ArcadeScreen>
         ),
       ),
     );
+  }
+
+  String _medal() {
+    final s = _game.score;
+    if (s >= 20) return '👑';
+    if (s >= 15) return '🥇';
+    if (s >= 10) return '🥈';
+    if (s >= 5) return '🥉';
+    return '🕊️';
+  }
+
+  void _replay() {
+    _counter.reset();
+    _bestCombo = 0;
+    _game.reset();
+    _startCountdown();
   }
 
   Widget _pauseOverlay() {

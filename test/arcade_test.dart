@@ -218,4 +218,72 @@ void main() {
       expect(g.speed, lessThanOrEqualTo(0.4));
     });
   });
+
+  group('ArcadeGame animacion', () {
+    test('birdVelocity refleja la dirección de movimiento', () {
+      final g = game();
+      for (var i = 0; i < 20; i++) {
+        g.update(0.05, targetAltitude: 0.85, bodyVisible: true);
+      }
+      expect(g.birdVelocity, greaterThan(0));
+
+      for (var i = 0; i < 40; i++) {
+        g.update(0.05, targetAltitude: 0.15, bodyVisible: true);
+      }
+      expect(g.birdVelocity, lessThan(0));
+    });
+
+    test('lastPassAt se marca al superar un pilar', () {
+      final g = game();
+      g.obstacles.add(
+        ArcadeObstacle(x: 0.3, gapCenter: 0.5, gapHalf: 0.13),
+      );
+      var passed = false;
+      for (var i = 0; i < 40 && !passed; i++) {
+        final e = g.update(0.05, targetAltitude: 0.5, bodyVisible: true);
+        if (e == ArcadeEvent.passed) passed = true;
+      }
+      expect(passed, isTrue);
+      expect(g.lastPassAt, greaterThan(0));
+    });
+
+    test('hitAt y gameOverAt se marcan al morir', () {
+      final g = game();
+      g.altitude = 0.9;
+      for (var i = 0; i < 3; i++) {
+        if (g.invulnerable) {
+          for (var j = 0; j < 40; j++) {
+            g.update(0.05, targetAltitude: 0.9, bodyVisible: true);
+          }
+        }
+        g.obstacles.add(
+          ArcadeObstacle(x: 0.3, gapCenter: 0.5, gapHalf: 0.13),
+        );
+        g.update(0.01, targetAltitude: 0.9, bodyVisible: true);
+      }
+      expect(g.gameOver, isTrue);
+      expect(g.hitAt, greaterThan(0));
+      expect(g.gameOverAt, greaterThan(0));
+    });
+
+    test('tick avanza el reloj visual tras el game over', () {
+      final g = game();
+      g.altitude = 0.9;
+      for (var i = 0; i < 3; i++) {
+        if (g.invulnerable) {
+          for (var j = 0; j < 40; j++) {
+            g.update(0.05, targetAltitude: 0.9, bodyVisible: true);
+          }
+        }
+        g.obstacles.add(
+          ArcadeObstacle(x: 0.3, gapCenter: 0.5, gapHalf: 0.13),
+        );
+        g.update(0.01, targetAltitude: 0.9, bodyVisible: true);
+      }
+      expect(g.gameOver, isTrue);
+      final frozen = g.elapsed;
+      g.tick(0.1);
+      expect(g.elapsed, closeTo(frozen + 0.1, 1e-9));
+    });
+  });
 }

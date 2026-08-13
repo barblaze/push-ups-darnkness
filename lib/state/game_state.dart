@@ -66,6 +66,8 @@ class GameState extends ChangeNotifier {
 
   AvatarStage get avatar => Avatar.forLevel(levelInfo.level);
 
+  int get arcadeBest => _data.arcadeBest;
+
   bool get hasSeenOnboarding => _data.hasSeenOnboarding;
 
   bool get hapticsEnabled => _data.hapticsEnabled;
