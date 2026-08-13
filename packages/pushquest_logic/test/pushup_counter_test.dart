@@ -36,6 +36,23 @@ CompletedRep? completeRep(
   return null;
 }
 
+/// Simula un ciclo completo de push-up suave entre [top] y [bottom] con pasos
+/// intermedios (el movimiento real es continuo) y un descanso en el tope.
+void fullCycle(
+  PushUpCounter c,
+  double top,
+  double bottom, {
+  int dwell = 15,
+}) {
+  for (final drop in [top, 0.66, 0.60, 0.53, bottom]) {
+    feed(c, frontPose(drop: drop), 4);
+  }
+  for (final drop in [0.58, 0.66, top]) {
+    feed(c, frontPose(drop: drop), 4);
+  }
+  feed(c, frontPose(drop: top), dwell);
+}
+
 void main() {
   group('PushUpCounter', () {
     test('counts a clean floor rep', () {
@@ -297,6 +314,89 @@ void main() {
       final counter = make(mode: PushUpMode.parallel);
       final update = counter.update(frontPose(drop: 1.0));
       expect(update.feedback, isNot(FeedbackKind.notVisible));
+    });
+  });
+
+  group('PushUpCounter re-anclaje', () {
+    test('cuenta reps de un usuario cuyo tope no alcanza el umbral fijo', () {
+      final counter = make(filterStrength: 1.0);
+      expect(counter.upThreshold, closeTo(0.85, 1e-9));
+
+      fullCycle(counter, 0.72, 0.5);
+      expect(counter.reps, 1);
+      expect(counter.upThreshold, lessThan(0.8));
+
+      fullCycle(counter, 0.72, 0.5);
+      fullCycle(counter, 0.72, 0.5);
+      expect(counter.reps, 3);
+
+      // El rango se re-ancló al rango medido [0.5, 0.72]: abajo ≈ 0.533,
+      // arriba ≈ 0.687.
+      expect(counter.upThreshold, closeTo(0.687, 0.02));
+      expect(counter.downThreshold, closeTo(0.533, 0.02));
+    });
+
+    test('no cuenta reps al mantener la postura o con rebotes pequeños', () {
+      final counter = make(filterStrength: 1.0);
+      feed(counter, frontPose(drop: 0.72), 60);
+      expect(counter.reps, 0);
+
+      feed(counter, frontPose(drop: 0.5), 20);
+      for (var i = 0; i < 3; i++) {
+        feed(counter, frontPose(drop: 0.55), 6);
+        feed(counter, frontPose(drop: 0.5), 6);
+      }
+      expect(counter.reps, 0);
+    });
+
+    test('un ciclo único cuenta exactamente una rep', () {
+      final counter = make(filterStrength: 1.0);
+      fullCycle(counter, 0.72, 0.5);
+      expect(counter.reps, 1);
+      expect(counter.phase, CounterPhase.up);
+      feed(counter, frontPose(drop: 0.72), 60);
+      expect(counter.reps, 1);
+    });
+
+    test('la calibración guardada siembra pero el rango se re-ancla a lo medido',
+        () {
+      final cal = DepthCalibration(
+        upSignal: 1.0,
+        downSignal: 0.6,
+        calibratedAt: DateTime(2026, 8, 1),
+      );
+      final counter = make(calibration: cal, filterStrength: 1.0);
+      expect(counter.downThreshold, closeTo(0.66, 1e-9));
+      expect(counter.upThreshold, closeTo(0.94, 1e-9));
+
+      fullCycle(counter, 0.72, 0.5);
+      expect(counter.reps, 1);
+      fullCycle(counter, 0.72, 0.5);
+
+      // Tras el re-anclaje los umbrales se acercan al rango medido [0.5, 0.72].
+      expect(counter.upThreshold, closeTo(0.687, 0.02));
+      expect(counter.downThreshold, closeTo(0.533, 0.02));
+    });
+
+    test('free/arcade también re-ancla sus umbrales', () {
+      final counter = make(mode: PushUpMode.free, filterStrength: 1.0);
+      fullCycle(counter, 0.72, 0.5);
+      expect(counter.reps, 1);
+      fullCycle(counter, 0.72, 0.5);
+      fullCycle(counter, 0.72, 0.5);
+      expect(counter.reps, 3);
+      expect(counter.upThreshold, lessThan(0.8));
+    });
+
+    test('un rango más amplio que los umbrales también se re-ancla', () {
+      final counter = make(filterStrength: 1.0);
+      fullCycle(counter, 0.95, 0.3);
+      expect(counter.reps, 1);
+      fullCycle(counter, 0.95, 0.3);
+      expect(counter.reps, 2);
+      // [0.3, 0.95]: abajo = 0.3 + 0.15 * 0.65 = 0.3975, arriba = 0.95 - 0.0975.
+      expect(counter.upThreshold, closeTo(0.8525, 0.02));
+      expect(counter.downThreshold, closeTo(0.3975, 0.02));
     });
   });
 }

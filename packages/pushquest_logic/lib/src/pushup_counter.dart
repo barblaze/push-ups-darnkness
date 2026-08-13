@@ -56,9 +56,17 @@ class FrameUpdate {
 /// Para evitar el sobreconteo por ruido de la pose:
 /// - suaviza la señal con un filtro exponencial (EMA);
 /// - exige [debounceFrames] frames consecutivos fuera del umbral para cambiar
-///   de fase, de modo que un destello de un frame no se cuenta como rep;
-/// - con una [DepthCalibration] guardada deriva los umbrales del rango real de
-///   movimiento del usuario; sin ella usa valores fijos.
+///   de fase, de modo que un destello de un frame no se cuenta como rep.
+///
+/// Los umbrales se adaptan al rango real de movimiento del usuario:
+/// - con una [DepthCalibration] guardada siembran el rango de arranque; sin
+///   ella usan valores fijos por modo;
+/// - al iniciar cada rep (entrada a la fase "abajo") se re-anclan al fondo y
+///   al tope medidos de la rep anterior, de modo que un usuario cuyo rango no
+///   alcanza los valores por defecto cuenta igualmente sus reps válidas;
+/// - un desatascador baja el umbral "arriba" cuando el usuario lleva varios
+///   frames estancado en su tope (p. ej. la primera rep con un tope por debajo
+///   del umbral fijo), sin recontar mientras mantiene la postura.
 class PushUpCounter {
   PushUpCounter({
     this.mode = PushUpMode.floor,
@@ -84,6 +92,32 @@ class PushUpCounter {
   double _targetThreshold = 0;
   bool _hasCalibration = false;
 
+  // Rango de referencia: fondo y tope medidos de la última rep completada.
+  // Se re-anclan en la entrada de cada fase "abajo" y de ellos se derivan los
+  // umbrales, de modo que el conteo se adapta al recorrido real del usuario.
+  double _calMin = 0;
+  double _calMax = 0;
+  double? _lastBottom;
+  double _ascentPeak = 0;
+
+  // Desatascador del lado "arriba": detecta que el usuario está estancado en su
+  // tope (no logra cruzar [_upThreshold]) y baja el umbral para completar la rep.
+  double _peakSinceBottom = 0;
+  int _atPeakFrames = 0;
+
+  // Margen con el que se baja el umbral "arriba" al desatascar.
+  static const double _adaptiveMargin = 0.05;
+  // Subida mínima sobre el fondo para considerar la rep válida al desatascar.
+  static const double _minReturn = 0.12;
+  // Frames consecutivos estancado en el tope antes de desatascar.
+  static const int _stallFrames = 8;
+  // Ventana alrededor del pico que cuenta como "en el tope".
+  static const double _atPeakBuffer = 0.03;
+  // Subida por frame por debajo de la cual el pico se considera estancado.
+  static const double _riseDelta = 0.005;
+  // Rango mínimo para no degenerar los umbrales derivados.
+  static const double _minSpan = 0.05;
+
   void _applyCalibration() {
     final cal = _calibration;
     if (cal != null && cal.isValid) {
@@ -97,6 +131,64 @@ class PushUpCounter {
       _upThreshold = frontUpDropFor(mode);
       _targetThreshold = frontTargetDropFor(mode);
       _hasCalibration = false;
+    }
+    _calMin = _targetThreshold;
+    _calMax = _upThreshold;
+  }
+
+  /// Deriva los umbrales del rango de referencia medido (fondo → "abajo",
+  /// tope → "arriba") con el mismo margen del 15% que usa la calibración.
+  void _recomputeThresholds() {
+    final span = math.max(_calMax - _calMin, _minSpan);
+    _downThreshold = _calMin + span * 0.15;
+    _upThreshold = _calMax - span * 0.15;
+    _targetThreshold = _calMin;
+  }
+
+  void _enterUp(double signal) {
+    _phase = CounterPhase.up;
+    _upFrames = 0;
+    _ascentPeak = signal;
+  }
+
+  void _enterDown(double signal, {required double straightness}) {
+    final bottom = _lastBottom;
+    if (bottom != null) {
+      _calMin = bottom;
+      _calMax = math.max(_ascentPeak, bottom + _minSpan);
+      _recomputeThresholds();
+    }
+    _phase = CounterPhase.down;
+    _downFrames = 0;
+    _minSignal = signal;
+    _minStraightness = straightness;
+    _peakSinceBottom = signal;
+    _atPeakFrames = 0;
+  }
+
+  /// Rastrea el fondo y el pico de la rep en curso y desatasca el umbral
+  /// "arriba" si el usuario queda estancado en su tope sin poder cruzar.
+  void _adaptUpThreshold(double signal) {
+    if (signal < _minSignal) {
+      _minSignal = signal;
+      _peakSinceBottom = signal;
+      _atPeakFrames = 0;
+      return;
+    }
+    if (signal > _peakSinceBottom + _riseDelta) {
+      _peakSinceBottom = signal;
+      _atPeakFrames = 0;
+      return;
+    }
+    if (signal > _peakSinceBottom) _peakSinceBottom = signal;
+    if (signal >= _peakSinceBottom - _atPeakBuffer) {
+      _atPeakFrames += 1;
+      if (_atPeakFrames >= _stallFrames &&
+          _peakSinceBottom - _minSignal >= _minReturn) {
+        _upThreshold = _peakSinceBottom - _adaptiveMargin;
+      }
+    } else {
+      _atPeakFrames = 0;
     }
   }
 
@@ -140,6 +232,10 @@ class PushUpCounter {
     _filteredInit = false;
     _downFrames = 0;
     _upFrames = 0;
+    _lastBottom = null;
+    _ascentPeak = 0;
+    _peakSinceBottom = 0;
+    _atPeakFrames = 0;
   }
 
   FrameUpdate update(PoseData pose, {double elapsedSinceLastFrame = 0}) {
@@ -171,16 +267,17 @@ class PushUpCounter {
 
     if (mode.countsAnyRep) {
       if (_phase == CounterPhase.up) {
+        _ascentPeak = math.max(_ascentPeak, signal);
         if (signal <= _downThreshold) {
           _downFrames += 1;
           if (_downFrames >= debounceFrames) {
-            _phase = CounterPhase.down;
-            _downFrames = 0;
+            _enterDown(signal, straightness: 1);
           }
         } else {
           _downFrames = 0;
         }
       } else if (_phase == CounterPhase.down) {
+        _adaptUpThreshold(signal);
         if (signal >= _upThreshold) {
           _upFrames += 1;
           if (_upFrames >= debounceFrames) {
@@ -193,8 +290,8 @@ class PushUpCounter {
               points: 0,
               combo: 0,
             );
-            _phase = CounterPhase.up;
-            _upFrames = 0;
+            _lastBottom = _minSignal;
+            _enterUp(signal);
           }
         } else {
           _upFrames = 0;
@@ -202,21 +299,22 @@ class PushUpCounter {
       }
     } else if (!_requiresPlank || analysis.plank) {
       if (_phase == CounterPhase.up) {
+        _ascentPeak = math.max(_ascentPeak, signal);
         if (signal <= _downThreshold) {
           _downFrames += 1;
           if (_downFrames >= debounceFrames) {
-            _phase = CounterPhase.down;
-            _downFrames = 0;
-            _minSignal = signal;
-            _minStraightness = straightnessFromSag(analysis.sagRatio);
+            _enterDown(
+              signal,
+              straightness: straightnessFromSag(analysis.sagRatio),
+            );
           }
         } else {
           _downFrames = 0;
         }
       } else if (_phase == CounterPhase.down) {
-        _minSignal = math.min(_minSignal, signal);
         _minStraightness =
             math.min(_minStraightness, straightnessFromSag(analysis.sagRatio));
+        _adaptUpThreshold(signal);
         if (signal >= _upThreshold) {
           _upFrames += 1;
           if (_upFrames >= debounceFrames) {
@@ -240,10 +338,8 @@ class PushUpCounter {
               points: RepScoring.points(quality: quality, combo: _combo),
               combo: _combo,
             );
-            _phase = CounterPhase.up;
-            _upFrames = 0;
-            _minSignal = 180;
-            _minStraightness = 1;
+            _lastBottom = _minSignal;
+            _enterUp(signal);
           }
         } else {
           _upFrames = 0;
