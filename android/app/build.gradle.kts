@@ -15,12 +15,12 @@ android {
 
     defaultConfig {
         applicationId = "com.pushquest.pushquest"
-        minSdk = 26
+        minSdk = 31
         targetSdk = 36
         versionCode = 2
         versionName = "1.1.0"
         ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+            abiFilters += listOf("arm64-v8a")
         }
     }
 
