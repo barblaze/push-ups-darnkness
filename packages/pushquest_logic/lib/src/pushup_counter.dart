@@ -123,7 +123,7 @@ class PushUpCounter {
 
     CompletedRep? completedRep;
 
-    if (mode == PushUpMode.free) {
+    if (mode.countsAnyRep) {
       if (_phase == CounterPhase.up) {
         if (signal <= downThreshold) {
           _phase = CounterPhase.down;
@@ -185,7 +185,7 @@ class PushUpCounter {
       _minStraightness = 1;
     }
 
-    final feedback = mode == PushUpMode.free
+    final feedback = mode.countsAnyRep
         ? FeedbackKind.good
         : _pickFeedback(analysis);
     return FrameUpdate(

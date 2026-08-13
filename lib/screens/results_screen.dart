@@ -3,87 +3,117 @@ import 'package:pushquest_logic/pushquest_logic.dart';
 
 import '../state/game_state.dart';
 import '../theme/app_theme.dart';
+import '../widgets/confetti_burst.dart';
+import '../widgets/haptics.dart';
+import '../widgets/responsive.dart';
 import '../widgets/stat_card.dart';
 import 'workout_screen.dart';
 
-class ResultsScreen extends StatelessWidget {
+class ResultsScreen extends StatefulWidget {
   const ResultsScreen({super.key, required this.result, required this.state});
 
   final WorkoutApplyResult result;
   final GameState state;
 
   @override
+  State<ResultsScreen> createState() => _ResultsScreenState();
+}
+
+class _ResultsScreenState extends State<ResultsScreen> {
+  bool get _isRecord {
+    final reps = widget.result.session.reps;
+    return reps > 0 && reps >= widget.state.stats.bestSessionReps;
+  }
+
+  bool get _celebrate =>
+      widget.result.levelAfter > widget.result.levelBefore ||
+      widget.result.missionCompleted ||
+      _isRecord;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_celebrate) Haptics.celebrate();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final result = widget.result;
     final session = result.session;
     final levelUp = result.levelAfter > result.levelBefore;
     return Scaffold(
       appBar: AppBar(title: const Text('Resultados')),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                '${session.reps}',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 72,
-                  fontWeight: FontWeight.w900,
-                  color: AppColors.primary,
-                  height: 1,
-                ),
-              ),
-              Text(
-                'push-ups · ${session.mode.label}',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 18,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 24),
-              if (levelUp)
-                _banner(
-                  icon: '⭐',
-                  text: '¡Subiste al nivel ${result.levelAfter}!',
-                  color: AppColors.warning,
-                ),
-              if (result.missionCompleted) ...[
-                const SizedBox(height: 10),
-                _banner(
-                  icon: '🎯',
-                  text:
-                      '¡Misión del día completada! +${result.missionBonus} XP',
-                  color: AppColors.success,
-                ),
-              ],
-              const SizedBox(height: 20),
-              Row(
+      body: Stack(
+        children: [
+          SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(
-                    child: StatCard(
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        '${session.reps}',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 72,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.primary,
+                          height: 1,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Text(
+                    'push-ups · ${session.mode.label}',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: AppSizes.font(context, 18),
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  if (levelUp) _avatarCelebration(),
+                  if (_isRecord) ...[
+                    _banner(
+                      icon: '🏆',
+                      text: '¡Nuevo récord personal!',
+                      color: AppColors.warning,
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                  if (levelUp)
+                    _banner(
+                      icon: '⭐',
+                      text: '¡Subiste al nivel ${result.levelAfter}!',
+                      color: AppColors.warning,
+                    ),
+                  if (result.missionCompleted) ...[
+                    const SizedBox(height: 10),
+                    _banner(
+                      icon: '🎯',
+                      text:
+                          '¡Misión del día completada! +${result.missionBonus} XP',
+                      color: AppColors.success,
+                    ),
+                  ],
+                  const SizedBox(height: 20),
+                  _statGrid([
+                    StatCard(
                       label: 'Puntos',
                       value: '${session.points}',
                       icon: Icons.bolt,
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: StatCard(
+                    StatCard(
                       label: 'Mejor combo',
                       value: 'x${session.bestCombo}',
                       icon: Icons.link,
                       accent: AppColors.accent,
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: StatCard(
+                    StatCard(
                       label: 'Duración',
                       value:
                           '${(session.durationSeconds ~/ 60).toString().padLeft(2, '0')}:'
@@ -91,52 +121,104 @@ class ResultsScreen extends StatelessWidget {
                       icon: Icons.timer,
                       accent: AppColors.accent,
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: StatCard(
+                    StatCard(
                       label: 'XP total',
-                      value: '${state.stats.totalXp}',
+                      value: '${widget.state.stats.totalXp}',
                       icon: Icons.trending_up,
                       accent: AppColors.success,
                     ),
+                  ]),
+                  if (result.newlyUnlocked.isNotEmpty) ...[
+                    const SizedBox(height: 20),
+                    _achievementsSection(context),
+                  ],
+                  const SizedBox(height: 28),
+                  FilledButton(
+                    onPressed: () => Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(
+                        builder: (_) => WorkoutScreen(
+                          state: widget.state,
+                          mode: session.mode,
+                          placement: session.placement,
+                        ),
+                      ),
+                    ),
+                    child: const Text('ENTRENAR DE NUEVO'),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton(
+                    onPressed: () =>
+                        Navigator.of(context).popUntil((route) => route.isFirst),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(56),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      foregroundColor: AppColors.textPrimary,
+                    ),
+                    child: const Text('Volver al inicio'),
                   ),
                 ],
               ),
-              if (result.newlyUnlocked.isNotEmpty) ...[
-                const SizedBox(height: 20),
-                _achievementsSection(context),
-              ],
-              const SizedBox(height: 28),
-              FilledButton(
-                onPressed: () => Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(
-                    builder: (_) => WorkoutScreen(
-                      state: state,
-                      mode: session.mode,
-                      placement: session.placement,
-                    ),
-                  ),
-                ),
-                child: const Text('ENTRENAR DE NUEVO'),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton(
-                onPressed: () =>
-                    Navigator.of(context).popUntil((route) => route.isFirst),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(56),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  foregroundColor: AppColors.textPrimary,
-                ),
-                child: const Text('Volver al inicio'),
-              ),
-            ],
+            ),
+          ),
+          if (_celebrate)
+            Positioned.fill(
+              child: ConfettiBurst(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _avatarCelebration() {
+    final avatar = widget.state.avatar;
+    return Column(
+      children: [
+        TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.4, end: 1.0),
+          duration: const Duration(milliseconds: 700),
+          curve: Curves.easeOutBack,
+          builder: (context, scale, child) =>
+              Transform.scale(scale: scale, child: child),
+          child: Container(
+            width: 88,
+            height: 88,
+            decoration: BoxDecoration(
+              color: Color(avatar.color),
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: Text(avatar.emoji, style: const TextStyle(fontSize: 48)),
           ),
         ),
-      ),
+        const SizedBox(height: 8),
+        Text(
+          '${avatar.name} · Nivel ${widget.state.levelInfo.level}',
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 14,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _statGrid(List<StatCard> cards) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = AppSizes.cardWidth(constraints.maxWidth);
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            for (final card in cards)
+              SizedBox(width: width, child: card),
+          ],
+        );
+      },
     );
   }
 
@@ -189,7 +271,7 @@ class ResultsScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            for (final a in result.newlyUnlocked) ...[
+            for (final a in widget.result.newlyUnlocked) ...[
               Row(
                 children: [
                   Text(a.icon, style: const TextStyle(fontSize: 22)),
@@ -211,7 +293,8 @@ class ResultsScreen extends StatelessWidget {
                   ),
                 ],
               ),
-              if (a != result.newlyUnlocked.last) const SizedBox(height: 8),
+              if (a != widget.result.newlyUnlocked.last)
+                const SizedBox(height: 8),
             ],
           ],
         ),

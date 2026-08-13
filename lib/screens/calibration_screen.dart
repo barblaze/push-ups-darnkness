@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:pushquest_logic/pushquest_logic.dart';
 
+import '../game/camera_setup.dart';
 import '../pose/pose_detector_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/pose_overlay_painter.dart';
@@ -28,6 +29,7 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
   bool _mirrorPreview = false;
   bool _isInitializing = true;
   bool _isProcessing = false;
+  bool _permissionDenied = false;
   String? _fatalError;
   String _status = 'Iniciando…';
 
@@ -60,12 +62,14 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
       final status = await Permission.camera.request();
       if (!status.isGranted) {
         setState(() {
+          _permissionDenied = true;
           _fatalError =
               'Se necesita permiso de cámara para probar la detección.';
           _isInitializing = false;
         });
         return;
       }
+      _permissionDenied = false;
 
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
@@ -76,36 +80,10 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
         return;
       }
 
-      CameraDescription camera;
-      try {
-        camera = cameras.firstWhere(
-          (c) => c.lensDirection == CameraLensDirection.front,
-        );
-      } catch (_) {
-        camera = cameras.first;
-      }
-      _mirrorPreview = camera.lensDirection == CameraLensDirection.front;
-
-      var controller = CameraController(
-        camera,
-        ResolutionPreset.medium,
-        enableAudio: false,
-        imageFormatGroup: ImageFormatGroup.nv21,
-      );
+      final controller = await initializeCamera(cameras);
       _cameraController = controller;
-      try {
-        await controller.initialize();
-      } catch (_) {
-        await controller.dispose();
-        controller = CameraController(
-          camera,
-          ResolutionPreset.medium,
-          enableAudio: false,
-          imageFormatGroup: ImageFormatGroup.yuv420,
-        );
-        _cameraController = controller;
-        await controller.initialize();
-      }
+      _mirrorPreview =
+          controller.description.lensDirection == CameraLensDirection.front;
 
       await _poseDetector.initialize();
 
@@ -221,10 +199,28 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
               style: const TextStyle(color: AppColors.textPrimary),
             ),
             const SizedBox(height: 24),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Volver'),
-            ),
+            if (_permissionDenied) ...[
+              FilledButton.icon(
+                onPressed: () => openAppSettings(),
+                icon: const Icon(Icons.settings),
+                label: const Text('Abrir ajustes'),
+              ),
+              const SizedBox(height: 10),
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _isInitializing = true;
+                    _fatalError = null;
+                  });
+                  _init();
+                },
+                child: const Text('Reintentar'),
+              ),
+            ] else
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Volver'),
+              ),
           ],
         ),
       ),

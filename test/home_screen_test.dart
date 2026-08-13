@@ -11,6 +11,7 @@ void main() {
     tester,
   ) async {
     final state = await GameState.load(storage: MemoryGameStorage());
+    await state.markOnboardingSeen();
     await tester.pumpWidget(PushQuestApp(state: state));
     await tester.pumpAndSettle();
 
@@ -19,10 +20,13 @@ void main() {
     expect(find.textContaining('Nivel 1'), findsWidgets);
     expect(find.text('Desafíos'), findsOneWidget);
     expect(find.text('Estadísticas'), findsOneWidget);
+    expect(find.text('Mini juego: PushBird'), findsOneWidget);
+    expect(find.text('🎮 Arcade'), findsNothing);
   });
 
   testWidgets('can navigate to challenges screen', (tester) async {
     final state = await GameState.load(storage: MemoryGameStorage());
+    await state.markOnboardingSeen();
     await tester.pumpWidget(PushQuestApp(state: state));
     await tester.pumpAndSettle();
 

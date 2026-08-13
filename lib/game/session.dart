@@ -57,6 +57,10 @@ class PersistedData {
     required this.sessions,
     required this.defaultMode,
     required this.defaultPlacement,
+    this.parallelReps = 0,
+    this.arcadeBest = 0,
+    this.hasSeenOnboarding = false,
+    this.hapticsEnabled = true,
   });
 
   final int totalReps;
@@ -65,12 +69,16 @@ class PersistedData {
   final int bestCombo;
   final int streakDays;
   final int floorReps;
+  final int parallelReps;
+  final int arcadeBest;
   final int sessionsCount;
   final int daysActive;
   final String? lastActiveDate;
   final List<SessionRecord> sessions;
   final PushUpMode defaultMode;
   final CameraPlacement defaultPlacement;
+  final bool hasSeenOnboarding;
+  final bool hapticsEnabled;
 
   static const PersistedData empty = PersistedData(
     totalReps: 0,
@@ -94,6 +102,8 @@ class PersistedData {
         bestCombo: bestCombo,
         streakDays: streakDays,
         floorReps: floorReps,
+        parallelReps: parallelReps,
+        arcadeBest: arcadeBest,
         sessionsCount: sessionsCount,
         daysActive: daysActive,
       );
@@ -105,12 +115,16 @@ class PersistedData {
         'bestCombo': bestCombo,
         'streakDays': streakDays,
         'floorReps': floorReps,
+        'parallelReps': parallelReps,
+        'arcadeBest': arcadeBest,
         'sessionsCount': sessionsCount,
         'daysActive': daysActive,
         'lastActiveDate': lastActiveDate,
         'sessions': sessions.map((s) => s.toJson()).toList(),
         'defaultMode': defaultMode.name,
         'defaultPlacement': defaultPlacement.name,
+        'onboarded': hasSeenOnboarding,
+        'haptics': hapticsEnabled,
       };
 
   static PersistedData fromJson(Map<String, dynamic> json) {
@@ -121,6 +135,8 @@ class PersistedData {
       bestCombo: json['bestCombo'] as int? ?? 0,
       streakDays: json['streakDays'] as int? ?? 0,
       floorReps: json['floorReps'] as int? ?? 0,
+      parallelReps: json['parallelReps'] as int? ?? 0,
+      arcadeBest: json['arcadeBest'] as int? ?? 0,
       sessionsCount: json['sessionsCount'] as int? ?? 0,
       daysActive: json['daysActive'] as int? ?? 0,
       lastActiveDate: json['lastActiveDate'] as String?,
@@ -132,6 +148,8 @@ class PersistedData {
       defaultPlacement:
           CameraPlacement.values.asNameMap()[json['defaultPlacement']] ??
               CameraPlacement.front,
+      hasSeenOnboarding: json['onboarded'] as bool? ?? false,
+      hapticsEnabled: json['haptics'] as bool? ?? true,
     );
   }
 }

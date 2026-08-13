@@ -201,6 +201,7 @@ class StatsScreen extends StatelessWidget {
                                     PushUpMode.floor => 'p',
                                     PushUpMode.parallel => 'P',
                                     PushUpMode.free => 'L',
+                                    PushUpMode.arcade => 'A',
                                   },
                                   style: const TextStyle(
                                     fontSize: 11,
@@ -223,6 +224,7 @@ class StatsScreen extends StatelessWidget {
                                 PushUpMode.floor => AppColors.primary,
                                 PushUpMode.parallel => AppColors.warning,
                                 PushUpMode.free => AppColors.success,
+                                PushUpMode.arcade => AppColors.accent,
                               },
                               width: 12,
                               borderRadius: BorderRadius.circular(4),

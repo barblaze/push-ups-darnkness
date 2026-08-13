@@ -3,8 +3,10 @@ import 'package:pushquest_logic/pushquest_logic.dart';
 
 import '../state/game_state.dart';
 import '../theme/app_theme.dart';
+import 'arcade_screen.dart';
 import 'challenges_screen.dart';
 import 'calibration_screen.dart';
+import 'settings_screen.dart';
 import 'stats_screen.dart';
 import 'workout_screen.dart';
 
@@ -28,15 +30,19 @@ class HomeScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _header(avatar, level),
+                  _header(context, avatar, level),
                   const SizedBox(height: 20),
                   _xpCard(level),
                   const SizedBox(height: 16),
                   _modeSelector(),
                   const SizedBox(height: 16),
+                  _arcadeCard(context),
+                  const SizedBox(height: 16),
                   _placementSelector(),
                   const SizedBox(height: 16),
                   _missionCard(mission),
+                  const SizedBox(height: 16),
+                  _weeklyCard(),
                   const SizedBox(height: 24),
                   FilledButton(
                     onPressed: () => _startWorkout(context),
@@ -77,7 +83,7 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _header(AvatarStage avatar, LevelInfo level) {
+  Widget _header(BuildContext context, AvatarStage avatar, LevelInfo level) {
     return Row(
       children: [
         Container(
@@ -135,6 +141,15 @@ class HomeScreen extends StatelessWidget {
               ),
             ],
           ),
+        ),
+        const SizedBox(width: 6),
+        IconButton(
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => SettingsScreen(state: state)),
+          ),
+          icon: const Icon(Icons.settings_outlined),
+          color: AppColors.textSecondary,
+          tooltip: 'Ajustes',
         ),
       ],
     );
@@ -194,7 +209,8 @@ class HomeScreen extends StatelessWidget {
   Widget _modeSelector() {
     return SegmentedButton<PushUpMode>(
       segments: [
-        for (final mode in PushUpMode.values)
+        for (final mode
+            in PushUpMode.values.where((m) => m != PushUpMode.arcade))
           ButtonSegment(value: mode, label: Text('${mode.icon} ${mode.label}')),
       ],
       selected: {state.defaultMode},
@@ -205,6 +221,64 @@ class HomeScreen extends StatelessWidget {
         selectedBackgroundColor: AppColors.primary,
         foregroundColor: AppColors.textSecondary,
         selectedForegroundColor: Colors.white,
+      ),
+    );
+  }
+
+  Widget _arcadeCard(BuildContext context) {
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => ArcadeScreen(
+              state: state,
+              placement: state.defaultPlacement,
+            ),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                alignment: Alignment.center,
+                child: const Text('🎮', style: TextStyle(fontSize: 24)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Mini juego: PushBird',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    const Text(
+                      'Vuela haciendo push-ups',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: AppColors.textSecondary),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -307,6 +381,59 @@ class HomeScreen extends StatelessWidget {
               style: const TextStyle(
                 fontSize: 13,
                 color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _weeklyCard() {
+    final goal = state.weeklyGoal;
+    final weekReps = state.weeklyReps;
+    final progress = goal.progress(weekReps);
+    final done = progress >= 1;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Text('🗓️', style: TextStyle(fontSize: 24)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Objetivo semanal: ${goal.targetReps} push-ups',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+                Text(
+                  '$weekReps/${goal.targetReps}',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: done ? AppColors.success : AppColors.warning,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 10,
+                backgroundColor: AppColors.surfaceAlt,
+                valueColor: AlwaysStoppedAnimation(
+                  done ? AppColors.success : AppColors.warning,
+                ),
               ),
             ),
           ],

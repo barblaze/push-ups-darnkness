@@ -7,10 +7,12 @@ import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:pushquest_logic/pushquest_logic.dart';
 
+import '../game/camera_setup.dart';
 import '../pose/pose_detector_service.dart';
 import '../state/game_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/feedback_view.dart';
+import '../widgets/haptics.dart';
 import '../widgets/pose_overlay_painter.dart';
 import 'results_screen.dart';
 
@@ -51,6 +53,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   int _countdown = 3;
   Timer? _countdownTimer;
   bool _stoppingByHighFive = false;
+  bool _permissionDenied = false;
 
   DateTime? _sessionStart;
   Timer? _elapsedTimer;
@@ -69,12 +72,14 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   @override
   void initState() {
     super.initState();
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     _counter = PushUpCounter(mode: widget.mode, placement: widget.placement);
     _init();
   }
 
   @override
   void dispose() {
+    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
     _countdownTimer?.cancel();
     _elapsedTimer?.cancel();
     _cameraController?.stopImageStream();
@@ -88,12 +93,14 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
       final status = await Permission.camera.request();
       if (!status.isGranted) {
         setState(() {
+          _permissionDenied = true;
           _fatalError =
               'Se necesita permiso de cámara para contar tus push-ups.';
           _isInitializing = false;
         });
         return;
       }
+      _permissionDenied = false;
 
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
@@ -104,36 +111,10 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
         return;
       }
 
-      CameraDescription camera;
-      try {
-        camera = cameras.firstWhere(
-          (c) => c.lensDirection == CameraLensDirection.front,
-        );
-      } catch (_) {
-        camera = cameras.first;
-      }
-      _mirrorPreview = camera.lensDirection == CameraLensDirection.front;
-
-      var controller = CameraController(
-        camera,
-        ResolutionPreset.medium,
-        enableAudio: false,
-        imageFormatGroup: ImageFormatGroup.nv21,
-      );
+      final controller = await initializeCamera(cameras);
       _cameraController = controller;
-      try {
-        await controller.initialize();
-      } catch (_) {
-        await controller.dispose();
-        controller = CameraController(
-          camera,
-          ResolutionPreset.medium,
-          enableAudio: false,
-          imageFormatGroup: ImageFormatGroup.yuv420,
-        );
-        _cameraController = controller;
-        await controller.initialize();
-      }
+      _mirrorPreview =
+          controller.description.lensDirection == CameraLensDirection.front;
 
       await _poseDetector.initialize();
 
@@ -218,7 +199,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
       final completed = update.completedRep;
       if (completed != null && completed.points > 0) {
         _totalPoints += completed.points;
-        HapticFeedback.mediumImpact();
+        Haptics.rep();
         SystemSound.play(SystemSoundType.click);
         if (mounted) _showRepPopup(completed);
       }
@@ -238,7 +219,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   void _handleHighFive() {
     if (_finished) return;
     setState(() => _stoppingByHighFive = true);
-    HapticFeedback.heavyImpact();
+    Haptics.milestone();
     Timer(const Duration(milliseconds: 900), () {
       if (mounted) _finish();
     });
@@ -394,10 +375,28 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
               style: const TextStyle(color: AppColors.textPrimary),
             ),
             const SizedBox(height: 24),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Volver'),
-            ),
+            if (_permissionDenied) ...[
+              FilledButton.icon(
+                onPressed: () => openAppSettings(),
+                icon: const Icon(Icons.settings),
+                label: const Text('Abrir ajustes'),
+              ),
+              const SizedBox(height: 10),
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _isInitializing = true;
+                    _fatalError = null;
+                  });
+                  _init();
+                },
+                child: const Text('Reintentar'),
+              ),
+            ] else
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Volver'),
+              ),
           ],
         ),
       ),
@@ -496,14 +495,20 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
               ),
             ),
             const SizedBox(height: 4),
-            Text(
-              '$_countdown',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 120,
-                fontWeight: FontWeight.w900,
-                height: 1.1,
-                shadows: [Shadow(color: Colors.black87, blurRadius: 16)],
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  '$_countdown',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 120,
+                    fontWeight: FontWeight.w900,
+                    height: 1.1,
+                    shadows: [Shadow(color: Colors.black87, blurRadius: 16)],
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 24),
@@ -602,14 +607,22 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   Widget _repCounter() {
     return Column(
       children: [
-        Text(
-          '${_counter.reps}',
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 84,
-            fontWeight: FontWeight.w900,
-            height: 1,
-            shadows: [Shadow(color: Colors.black54, blurRadius: 12)],
+        TweenAnimationBuilder<double>(
+          key: ValueKey(_counter.reps),
+          tween: Tween(begin: 1.35, end: 1.0),
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutBack,
+          builder: (context, scale, child) =>
+              Transform.scale(scale: scale, child: child),
+          child: Text(
+            '${_counter.reps}',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 84,
+              fontWeight: FontWeight.w900,
+              height: 1,
+              shadows: [Shadow(color: Colors.black54, blurRadius: 12)],
+            ),
           ),
         ),
         Text(
@@ -651,8 +664,56 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
             const SizedBox(height: 10),
             _depthBar(update),
           ],
+          const SizedBox(height: 12),
+          _xpRow(),
         ],
       ),
+    );
+  }
+
+  Widget _xpRow() {
+    final level = widget.state.levelInfo;
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'NIVEL',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1.5,
+              ),
+            ),
+            Text(
+              '${level.level} · ${level.xpIntoLevel}/${level.xpForNext} XP',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        TweenAnimationBuilder<double>(
+          key: ValueKey('xp-${level.level}'),
+          tween: Tween(begin: 0, end: level.progress),
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeOut,
+          builder: (context, value, _) => ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: value,
+              minHeight: 6,
+              backgroundColor: Colors.white12,
+              valueColor: const AlwaysStoppedAnimation(AppColors.primary),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

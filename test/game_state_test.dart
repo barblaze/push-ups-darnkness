@@ -131,6 +131,70 @@ void main() {
       expect(state.defaultPlacement, CameraPlacement.profile);
       expect(storage.data.defaultPlacement, CameraPlacement.profile);
     });
+
+    test('parallel reps accumulate only in parallel mode', () async {
+      final state = await GameState.load(storage: MemoryGameStorage());
+
+      await state.applyWorkout(
+        WorkoutSummary(
+          startedAt: DateTime(2026, 7, 31),
+          mode: PushUpMode.parallel,
+          placement: CameraPlacement.profile,
+          reps: 20,
+          points: 100,
+          bestCombo: 4,
+          durationSeconds: 60,
+        ),
+      );
+      expect(state.stats.parallelReps, 20);
+      expect(state.stats.floorReps, 0);
+    });
+
+    test('onboarding and haptics flags persist', () async {
+      final storage = MemoryGameStorage();
+      final state = await GameState.load(storage: storage);
+
+      expect(state.hasSeenOnboarding, isFalse);
+      await state.markOnboardingSeen();
+      expect(state.hasSeenOnboarding, isTrue);
+      expect(storage.data.hasSeenOnboarding, isTrue);
+
+      expect(state.hapticsEnabled, isTrue);
+      await state.setHapticsEnabled(false);
+      expect(state.hapticsEnabled, isFalse);
+      expect(storage.data.hapticsEnabled, isFalse);
+    });
+
+    test('arcade session keeps best score and counts reps', () async {
+      final state = await GameState.load(storage: MemoryGameStorage());
+
+      await state.applyWorkout(
+        WorkoutSummary(
+          startedAt: DateTime(2026, 7, 31),
+          mode: PushUpMode.arcade,
+          placement: CameraPlacement.front,
+          reps: 8,
+          points: 50,
+          bestCombo: 2,
+          durationSeconds: 45,
+        ),
+      );
+      expect(state.stats.arcadeBest, 5);
+      expect(state.stats.totalReps, 8);
+
+      await state.applyWorkout(
+        WorkoutSummary(
+          startedAt: DateTime(2026, 7, 31),
+          mode: PushUpMode.arcade,
+          placement: CameraPlacement.front,
+          reps: 4,
+          points: 20,
+          bestCombo: 1,
+          durationSeconds: 30,
+        ),
+      );
+      expect(state.stats.arcadeBest, 5);
+    });
   });
 
   group('Persistence roundtrip', () {

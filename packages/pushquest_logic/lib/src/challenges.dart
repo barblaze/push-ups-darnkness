@@ -8,6 +8,8 @@ class PlayerStats {
     this.bestCombo = 0,
     this.streakDays = 0,
     this.floorReps = 0,
+    this.parallelReps = 0,
+    this.arcadeBest = 0,
     this.sessionsCount = 0,
     this.daysActive = 0,
   });
@@ -18,6 +20,8 @@ class PlayerStats {
   final int bestCombo;
   final int streakDays;
   final int floorReps;
+  final int parallelReps;
+  final int arcadeBest;
   final int sessionsCount;
   final int daysActive;
 }
@@ -55,20 +59,38 @@ class Achievement {
         return stats.bestSessionReps >= 20;
       case 'session_40':
         return stats.bestSessionReps >= 40;
+      case 'session_60':
+        return stats.bestSessionReps >= 60;
       case 'combo_3':
         return stats.bestCombo >= 3;
       case 'combo_5':
         return stats.bestCombo >= 5;
       case 'combo_10':
         return stats.bestCombo >= 10;
+      case 'combo_15':
+        return stats.bestCombo >= 15;
+      case 'combo_30':
+        return stats.bestCombo >= 30;
       case 'streak_3':
         return stats.streakDays >= 3;
       case 'streak_7':
         return stats.streakDays >= 7;
       case 'streak_14':
         return stats.streakDays >= 14;
+      case 'streak_30':
+        return stats.streakDays >= 30;
       case 'floor_100':
         return stats.floorReps >= 100;
+      case 'parallel_100':
+        return stats.parallelReps >= 100;
+      case 'parallel_300':
+        return stats.parallelReps >= 300;
+      case 'arcade_5':
+        return stats.arcadeBest >= 5;
+      case 'arcade_15':
+        return stats.arcadeBest >= 15;
+      case 'arcade_30':
+        return stats.arcadeBest >= 30;
       case 'level_3':
         return Levels.fromXp(stats.totalXp).level >= 3;
       case 'level_5':
@@ -77,6 +99,8 @@ class Achievement {
         return stats.daysActive >= 3;
       case 'active_7':
         return stats.daysActive >= 7;
+      case 'active_14':
+        return stats.daysActive >= 14;
       default:
         return false;
     }
@@ -140,6 +164,12 @@ class AchievementCatalog {
       description: 'Haz 40 push-ups en una sesión',
     ),
     Achievement(
+      id: 'session_60',
+      icon: '🐉',
+      name: 'Máquina',
+      description: 'Haz 60 push-ups en una sesión',
+    ),
+    Achievement(
       id: 'combo_3',
       icon: '🔗',
       name: 'Combo x3',
@@ -156,6 +186,18 @@ class AchievementCatalog {
       icon: '🔗',
       name: 'Combo x10',
       description: 'Encadena 10 push-ups perfectos',
+    ),
+    Achievement(
+      id: 'combo_15',
+      icon: '⛓️',
+      name: 'Combo x15',
+      description: 'Encadena 15 push-ups perfectos',
+    ),
+    Achievement(
+      id: 'combo_30',
+      icon: '⛓️',
+      name: 'Combo x30',
+      description: 'Encadena 30 push-ups perfectos',
     ),
     Achievement(
       id: 'streak_3',
@@ -176,10 +218,46 @@ class AchievementCatalog {
       description: 'Entrena 14 días seguidos',
     ),
     Achievement(
+      id: 'streak_30',
+      icon: '🌋',
+      name: 'Mes de hierro',
+      description: 'Entrena 30 días seguidos',
+    ),
+    Achievement(
       id: 'floor_100',
       icon: '🤸',
       name: 'Experto en piso',
       description: 'Acumula 100 push-ups en el suelo',
+    ),
+    Achievement(
+      id: 'parallel_100',
+      icon: '💪',
+      name: 'Rey de paralelas',
+      description: 'Acumula 100 push-ups en paralelas',
+    ),
+    Achievement(
+      id: 'parallel_300',
+      icon: '🏋️',
+      name: 'Titán de paralelas',
+      description: 'Acumula 300 push-ups en paralelas',
+    ),
+    Achievement(
+      id: 'arcade_5',
+      icon: '🪁',
+      name: 'Primer vuelo',
+      description: 'Pasa 5 pilares en el mini juego',
+    ),
+    Achievement(
+      id: 'arcade_15',
+      icon: '🛩️',
+      name: 'Aviador',
+      description: 'Pasa 15 pilares en el mini juego',
+    ),
+    Achievement(
+      id: 'arcade_30',
+      icon: '🦅',
+      name: 'Pájaro de acero',
+      description: 'Pasa 30 pilares en el mini juego',
     ),
     Achievement(
       id: 'level_3',
@@ -205,6 +283,12 @@ class AchievementCatalog {
       name: 'Semana activa',
       description: 'Entrena en 7 días distintos',
     ),
+    Achievement(
+      id: 'active_14',
+      icon: '📆',
+      name: 'Rutina',
+      description: 'Entrena en 14 días distintos',
+    ),
   ];
 
   static Achievement byId(String id) =>
@@ -228,4 +312,29 @@ class DailyMission {
   bool isComplete(int todayReps) => todayReps >= targetReps;
 
   double progress(int todayReps) => (todayReps / targetReps).clamp(0.0, 1.0);
+}
+
+/// Objetivo semanal (lunes a domingo) determinista y estable durante la semana.
+class WeeklyGoal {
+  const WeeklyGoal({required this.monday, required this.targetReps});
+
+  final DateTime monday;
+  final int targetReps;
+
+  static DateTime mondayOf(DateTime day) {
+    final monday = day.subtract(Duration(days: day.weekday - 1));
+    return DateTime(monday.year, monday.month, monday.day);
+  }
+
+  factory WeeklyGoal.forDay(DateTime day) {
+    final monday = mondayOf(day);
+    final target = 20 + ((monday.month * 7 + monday.day * 3) % 21);
+    return WeeklyGoal(monday: monday, targetReps: target);
+  }
+
+  bool includes(DateTime day) => mondayOf(day) == monday;
+
+  bool isComplete(int weekReps) => weekReps >= targetReps;
+
+  double progress(int weekReps) => (weekReps / targetReps).clamp(0.0, 1.0);
 }

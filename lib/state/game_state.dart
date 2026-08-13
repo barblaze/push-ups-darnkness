@@ -3,6 +3,7 @@ import 'package:pushquest_logic/pushquest_logic.dart';
 
 import '../game/session.dart';
 import '../game/storage.dart';
+import '../widgets/haptics.dart';
 
 class WorkoutApplyResult {
   const WorkoutApplyResult({
@@ -49,12 +50,25 @@ class GameState extends ChangeNotifier {
 
   DailyMission get dailyMission => DailyMission.forDay(DateTime.now());
 
+  WeeklyGoal get weeklyGoal => WeeklyGoal.forDay(DateTime.now());
+
+  int get weeklyReps {
+    final goal = weeklyGoal;
+    return sessions
+        .where((s) => goal.includes(s.startedAt))
+        .fold(0, (sum, s) => sum + s.reps);
+  }
+
   List<Achievement> get unlockedAchievements =>
       AchievementCatalog.all.where((a) => a.isUnlocked(stats)).toList();
 
   LevelInfo get levelInfo => Levels.fromXp(stats.totalXp);
 
   AvatarStage get avatar => Avatar.forLevel(levelInfo.level);
+
+  bool get hasSeenOnboarding => _data.hasSeenOnboarding;
+
+  bool get hapticsEnabled => _data.hapticsEnabled;
 
   static Future<GameState> load({GameStorage? storage}) async {
     final s = storage ?? PrefsGameStorage();
@@ -72,6 +86,21 @@ class GameState extends ChangeNotifier {
   Future<void> setDefaultPlacement(CameraPlacement placement) async {
     if (_data.defaultPlacement == placement) return;
     _data = _copyWith(_data, defaultPlacement: placement);
+    notifyListeners();
+    await _persist();
+  }
+
+  Future<void> markOnboardingSeen() async {
+    if (_data.hasSeenOnboarding) return;
+    _data = _copyWith(_data, hasSeenOnboarding: true);
+    notifyListeners();
+    await _persist();
+  }
+
+  Future<void> setHapticsEnabled(bool enabled) async {
+    if (_data.hapticsEnabled == enabled) return;
+    _data = _copyWith(_data, hapticsEnabled: enabled);
+    Haptics.enabled = enabled;
     notifyListeners();
     await _persist();
   }
@@ -120,6 +149,9 @@ class GameState extends ChangeNotifier {
       sessions.removeRange(0, sessions.length - 200);
     }
 
+    final arcadeScore =
+        summary.mode == PushUpMode.arcade ? summary.points ~/ 10 : 0;
+
     _data = PersistedData(
       totalReps: _data.totalReps + summary.reps,
       totalXp: _data.totalXp + awardedPoints,
@@ -132,12 +164,17 @@ class GameState extends ChangeNotifier {
       streakDays: streak,
       floorReps: _data.floorReps +
           (summary.mode == PushUpMode.floor ? summary.reps : 0),
+      parallelReps: _data.parallelReps +
+          (summary.mode == PushUpMode.parallel ? summary.reps : 0),
+      arcadeBest: _data.arcadeBest > arcadeScore ? _data.arcadeBest : arcadeScore,
       sessionsCount: _data.sessionsCount + 1,
       daysActive: daysActive,
       lastActiveDate: todayKey,
       sessions: sessions,
       defaultMode: _data.defaultMode,
       defaultPlacement: _data.defaultPlacement,
+      hasSeenOnboarding: _data.hasSeenOnboarding,
+      hapticsEnabled: _data.hapticsEnabled,
     );
 
     final newlyUnlocked = AchievementCatalog.all
@@ -167,6 +204,8 @@ class GameState extends ChangeNotifier {
     PersistedData data, {
     PushUpMode? defaultMode,
     CameraPlacement? defaultPlacement,
+    bool? hasSeenOnboarding,
+    bool? hapticsEnabled,
   }) {
     return PersistedData(
       totalReps: data.totalReps,
@@ -175,12 +214,16 @@ class GameState extends ChangeNotifier {
       bestCombo: data.bestCombo,
       streakDays: data.streakDays,
       floorReps: data.floorReps,
+      parallelReps: data.parallelReps,
+      arcadeBest: data.arcadeBest,
       sessionsCount: data.sessionsCount,
       daysActive: data.daysActive,
       lastActiveDate: data.lastActiveDate,
       sessions: data.sessions,
       defaultMode: defaultMode ?? data.defaultMode,
       defaultPlacement: defaultPlacement ?? data.defaultPlacement,
+      hasSeenOnboarding: hasSeenOnboarding ?? data.hasSeenOnboarding,
+      hapticsEnabled: hapticsEnabled ?? data.hapticsEnabled,
     );
   }
 }

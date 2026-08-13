@@ -94,6 +94,8 @@ class ChallengesScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 20),
+                _weeklyCard(context),
+                const SizedBox(height: 20),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -126,6 +128,83 @@ class ChallengesScreen extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  Widget _weeklyCard(BuildContext context) {
+    final goal = state.weeklyGoal;
+    final weekReps = state.weeklyReps;
+    final progress = goal.progress(weekReps);
+    final done = progress >= 1;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Text('🗓️', style: TextStyle(fontSize: 24)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Objetivo semanal',
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '${goal.targetReps} push-ups',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                Text(
+                  '$weekReps/${goal.targetReps}',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: done ? AppColors.success : AppColors.warning,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 10,
+                backgroundColor: AppColors.surfaceAlt,
+                valueColor: AlwaysStoppedAnimation(
+                  done ? AppColors.success : AppColors.warning,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              done
+                  ? '¡Semana cumplida! Sigue así.'
+                  : 'El objetivo se reinicia cada lunes.',
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

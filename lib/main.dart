@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 
 import 'screens/home_screen.dart';
+import 'screens/onboarding_screen.dart';
 import 'state/game_state.dart';
 import 'theme/app_theme.dart';
+import 'widgets/haptics.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final state = await GameState.load();
+  Haptics.enabled = state.hapticsEnabled;
   runApp(PushQuestApp(state: state));
 }
 
@@ -21,7 +24,9 @@ class PushQuestApp extends StatelessWidget {
       title: 'PushQuest',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
-      home: HomeScreen(state: state),
+      home: state.hasSeenOnboarding
+          ? HomeScreen(state: state)
+          : OnboardingScreen(state: state),
     );
   }
 }
