@@ -206,11 +206,83 @@ void main() {
       expect(counter.reps, 0);
     });
 
-    test('profile placement still requires ankles visible', () {
+    test('profile counts a plank rep without ankles visible', () {
+      final counter = PushUpCounter(mode: PushUpMode.floor);
+      counter.update(plankPose(elbowAngle: 165, ankles: false));
+      counter.update(plankPose(elbowAngle: 90, ankles: false));
+      expect(counter.phase, CounterPhase.down);
+      final update = counter.update(plankPose(elbowAngle: 165, ankles: false));
+      expect(counter.reps, 1);
+      expect(update.completedRep, isNotNull);
+      expect(update.bodyVisible, isTrue);
+    });
+
+    test('profile still requires a plank to count', () {
       final counter = PushUpCounter(mode: PushUpMode.floor);
       final update = counter.update(frontPose(drop: 1.0));
-      expect(update.bodyVisible, isFalse);
-      expect(update.feedback, FeedbackKind.notVisible);
+      expect(update.bodyVisible, isTrue);
+      expect(counter.reps, 0);
+      expect(update.feedback, FeedbackKind.notPlank);
+    });
+
+    test('feedback hipSag is aligned with the quality threshold', () {
+      final counter = PushUpCounter(mode: PushUpMode.floor);
+      final update = counter.update(plankPose(elbowAngle: 165, sag: 0.14));
+      expect(update.feedback, FeedbackKind.hipSag);
+    });
+  });
+
+  group('PushUpCounter parallel', () {
+    test('counts a clean dip without requiring a plank', () {
+      final counter = PushUpCounter(mode: PushUpMode.parallel);
+      counter.update(parallelPose(elbowAngle: 165));
+      expect(counter.phase, CounterPhase.up);
+      counter.update(parallelPose(elbowAngle: 90));
+      expect(counter.phase, CounterPhase.down);
+      final update = counter.update(parallelPose(elbowAngle: 165));
+      expect(counter.reps, 1);
+      expect(update.completedRep, isNotNull);
+      expect(update.completedRep!.isGood, isTrue);
+      expect(update.completedRep!.points, greaterThan(0));
+      expect(update.completedRep!.combo, 1);
+    });
+
+    test('does not count a shallow dip', () {
+      final counter = PushUpCounter(mode: PushUpMode.parallel);
+      counter.update(parallelPose(elbowAngle: 165));
+      counter.update(parallelPose(elbowAngle: 115));
+      expect(counter.phase, CounterPhase.up);
+      final update = counter.update(parallelPose(elbowAngle: 165));
+      expect(counter.reps, 0);
+      expect(update.completedRep, isNull);
+    });
+
+    test('counts a dip without ankles visible', () {
+      final counter = PushUpCounter(mode: PushUpMode.parallel);
+      counter.update(parallelPose(elbowAngle: 165, ankles: false));
+      counter.update(parallelPose(elbowAngle: 90, ankles: false));
+      final update = counter.update(parallelPose(elbowAngle: 165, ankles: false));
+      expect(counter.reps, 1);
+      expect(update.completedRep, isNotNull);
+    });
+
+    test('never reports notPlank', () {
+      final counter = PushUpCounter(mode: PushUpMode.parallel);
+      final update = counter.update(parallelPose(elbowAngle: 165));
+      expect(update.feedback, isNot(FeedbackKind.notPlank));
+    });
+
+    test('front placement counts a rep via shoulder drop', () {
+      final counter = PushUpCounter(
+        mode: PushUpMode.parallel,
+        placement: CameraPlacement.front,
+      );
+      counter.update(frontPose(drop: 1.0));
+      counter.update(frontPose(drop: 0.3));
+      expect(counter.phase, CounterPhase.down);
+      final update = counter.update(frontPose(drop: 1.0));
+      expect(counter.reps, 1);
+      expect(update.completedRep, isNotNull);
     });
   });
 }

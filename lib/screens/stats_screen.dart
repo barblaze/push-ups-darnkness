@@ -199,6 +199,7 @@ class StatsScreen extends StatelessWidget {
                                 child: Text(
                                   switch (m) {
                                     PushUpMode.floor => 'p',
+                                    PushUpMode.parallel => 'P',
                                     PushUpMode.free => 'L',
                                   },
                                   style: const TextStyle(
@@ -220,6 +221,7 @@ class StatsScreen extends StatelessWidget {
                               toY: recent[i].reps.toDouble(),
                               color: switch (recent[i].mode) {
                                 PushUpMode.floor => AppColors.primary,
+                                PushUpMode.parallel => AppColors.warning,
                                 PushUpMode.free => AppColors.success,
                               },
                               width: 12,

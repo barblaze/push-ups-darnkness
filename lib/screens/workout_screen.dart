@@ -476,7 +476,9 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
         ? null
         : analyzeBody(pose, placement: widget.placement);
     final bodyOk = analysis?.bodyVisible ?? false;
-    final plankOk = bodyOk && (widget.mode == PushUpMode.free || analysis!.plank);
+    final requiresPlank = widget.mode == PushUpMode.floor;
+    final positionOk =
+        bodyOk && (!requiresPlank || (analysis?.plank ?? false));
     return IgnorePointer(
       child: Container(
         color: Colors.black.withValues(alpha: 0.45),
@@ -507,8 +509,8 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
             const SizedBox(height: 24),
             _readyChip('Cuerpo visible', bodyOk, Icons.accessibility_new),
             const SizedBox(height: 8),
-            if (widget.mode != PushUpMode.free)
-              _readyChip('En posición de lagartija', plankOk,
+            if (requiresPlank)
+              _readyChip('En posición de lagartija', positionOk,
                   Icons.sports_gymnastics),
             const SizedBox(height: 24),
             const Text(

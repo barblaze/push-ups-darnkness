@@ -267,7 +267,7 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
         : (front ? analysis.dropRatio : analysis.elbowAngle);
     final upThreshold = front
         ? frontUpDropFor(PushUpMode.floor)
-        : upAngleFor(PushUpMode.floor, placement);
+        : upAngleFor(placement);
     final targetThreshold = front
         ? frontTargetDropFor(PushUpMode.floor)
         : targetAngleFor(PushUpMode.floor, placement);

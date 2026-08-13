@@ -37,6 +37,13 @@ class Quality {
   final bool isGood;
 }
 
+/// Límites para la caída/elevación de cadera. Se comparten entre la evaluación
+/// de calidad y el feedback en vivo para que avisen y degraden a la vez.
+const double sagOkMax = 0.12;
+const double sagOkMin = -0.10;
+const double sagFailMax = 0.35;
+const double sagFailMin = -0.30;
+
 Joint _mid(Joint a, Joint b) {
   return Joint(
     (a.x + b.x) / 2,
@@ -104,23 +111,30 @@ BodyAnalysis analyzeBody(
     return notVisible;
   }
 
-  if (hips == null || ankles == null) {
+  if (hips == null) {
     return notVisible;
   }
 
   final elbowAngle = angleAt(shoulders, elbows, wrists);
 
-  final torsoLen = distance(shoulders, ankles);
-  if (torsoLen == 0) {
+  // Los tobillos pueden salirse del encuadre en la vista de perfil; si no son
+  // visibles se usa la distancia hombros→caderas como longitud de referencia
+  // y se omite la evaluación de la cadera (sag), pero el conteo sigue activo.
+  final torsoLen = ankles == null
+      ? distance(shoulders, hips)
+      : distance(shoulders, ankles);
+  if (torsoLen <= 0.001) {
     return notVisible;
   }
 
   final plankRatio = (shoulders.y - hips.y).abs() / torsoLen;
   final plank = plankRatio <= 0.18;
 
-  final deviation = signedDistanceToLine(hips, shoulders, ankles);
-  final orientation = shoulders.x < ankles.x ? 1.0 : -1.0;
-  final sagRatio = deviation * orientation / torsoLen;
+  final sagRatio = ankles == null
+      ? 0.0
+      : signedDistanceToLine(hips, shoulders, ankles) *
+          (shoulders.x < ankles.x ? 1.0 : -1.0) /
+          torsoLen;
 
   return BodyAnalysis(
     bodyVisible: true,
@@ -149,13 +163,9 @@ Quality evaluateQuality({
 }
 
 double straightnessFromSag(double sagRatio) {
-  const okMax = 0.12;
-  const okMin = -0.10;
-  const failMax = 0.35;
-  const failMin = -0.30;
-  if (sagRatio <= okMax && sagRatio >= okMin) return 1.0;
-  if (sagRatio > okMax) {
-    return math.max(0.0, 1 - (sagRatio - okMax) / (failMax - okMax));
+  if (sagRatio <= sagOkMax && sagRatio >= sagOkMin) return 1.0;
+  if (sagRatio > sagOkMax) {
+    return math.max(0.0, 1 - (sagRatio - sagOkMax) / (sagFailMax - sagOkMax));
   }
-  return math.max(0.0, 1 - (okMin - sagRatio) / (okMin - failMin));
+  return math.max(0.0, 1 - (sagOkMin - sagRatio) / (sagOkMin - sagFailMin));
 }

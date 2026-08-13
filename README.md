@@ -1,8 +1,8 @@
 # PushQuest
 
 Push-ups como un juego: la app usa la cámara y detección de pose en tiempo real
-(MediaPipe, 100% en el dispositivo) para contar tus push-ups y evaluar tu forma,
-con puntos, rachas, niveles, avatar, misión diaria, logros y estadísticas.
+(Google ML Kit, 100% en el dispositivo) para contar tus push-ups y evaluar tu
+forma, con puntos, rachas, niveles, avatar, misión diaria, logros y estadísticas.
 
 - Modos: piso, paralelas (umbrales distintos por profundidad de bajada) y
   libre (solo cuenta tus reps, sin reglas ni puntuación).

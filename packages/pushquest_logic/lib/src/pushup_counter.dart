@@ -60,11 +60,13 @@ class PushUpCounter {
 
   final CameraPlacement placement;
 
-  double get upAngle => upAngleFor(mode, placement);
+  double get upAngle => upAngleFor(placement);
 
   double get countAngle => countAngleFor(mode, placement);
 
   double get targetAngle => targetAngleFor(mode, placement);
+
+  bool get _requiresPlank => mode == PushUpMode.floor;
 
   CounterPhase _phase = CounterPhase.up;
   int _reps = 0;
@@ -140,7 +142,7 @@ class PushUpCounter {
           _phase = CounterPhase.up;
         }
       }
-    } else if (analysis.plank) {
+    } else if (!_requiresPlank || analysis.plank) {
       if (_phase == CounterPhase.up) {
         if (signal <= downThreshold) {
           _phase = CounterPhase.down;
@@ -199,9 +201,9 @@ class PushUpCounter {
   }
 
   FeedbackKind _pickFeedback(BodyAnalysis analysis) {
-    if (analysis.sagRatio > 0.15) return FeedbackKind.hipSag;
-    if (analysis.sagRatio < -0.10) return FeedbackKind.hipPike;
-    if (!analysis.plank) return FeedbackKind.notPlank;
+    if (analysis.sagRatio > sagOkMax) return FeedbackKind.hipSag;
+    if (analysis.sagRatio < sagOkMin) return FeedbackKind.hipPike;
+    if (_requiresPlank && !analysis.plank) return FeedbackKind.notPlank;
     if (_phase == CounterPhase.down) {
       return _liveDepth >= 0.9 ? FeedbackKind.great : FeedbackKind.good;
     }
