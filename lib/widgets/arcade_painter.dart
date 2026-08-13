@@ -83,26 +83,7 @@ class ArcadePainter extends CustomPainter {
       Paint()..color = const Color(0x66000000),
     );
 
-    // Zonas muertas en los extremos.
-    final deadTop = topY + (0.16 / (bottomRatio - topRatio)) * trackH;
-    final deadBottom = topY + (0.84 / (bottomRatio - topRatio)) * trackH;
-    final deadPaint = Paint()..color = AppColors.danger.withValues(alpha: 0.28);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(trackX, topY, 9, deadTop - topY),
-        const Radius.circular(4.5),
-      ),
-      deadPaint,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(trackX, deadBottom, 9, bottomY - deadBottom),
-        const Radius.circular(4.5),
-      ),
-      deadPaint,
-    );
-
-    // Objetivo del pájaro según la profundidad actual.
+    // Objetivo del pájaro según la profundidad actual (mapeo directo 1:1).
     final target = game.targetForDepth(depthRatio).clamp(0.0, 1.0);
     final dotY = topY + (target / (bottomRatio - topRatio)) * trackH;
     canvas.drawCircle(

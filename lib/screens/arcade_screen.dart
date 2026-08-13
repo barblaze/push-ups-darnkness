@@ -65,7 +65,6 @@ class _ArcadeScreenState extends State<ArcadeScreen>
       mode: PushUpMode.arcade,
       calibration: widget.state.calibration,
     );
-    _game.setSensitivity(widget.state.arcadeSensitivity);
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     _init();
   }
@@ -164,7 +163,9 @@ class _ArcadeScreenState extends State<ArcadeScreen>
         _bestCombo = math.max(_bestCombo, update.combo);
         if (update.completedRep != null) Haptics.rep();
         if (update.bodyVisible) {
-          _game.feedDepth(update.depthRatio);
+          // Control directo 1:1 con el dropRatio crudo de la pose: el pájaro
+          // sigue al cuerpo a la misma altura y velocidad.
+          _game.feedDepth(analyzeBody(pose ?? _emptyPose()).dropRatio);
         }
         if (mounted) {
           setState(() {
@@ -288,7 +289,7 @@ class _ArcadeScreenState extends State<ArcadeScreen>
             characterColor: Color(widget.state.avatar.color),
             bestScore: widget.state.arcadeBest,
             showDepthGauge: _phase == _ArcadePhase.countdown,
-            depthRatio: _lastUpdate?.depthRatio ?? 0.5,
+            depthRatio: _game.filteredDepth,
           ),
         ),
         SafeArea(child: _hud()),

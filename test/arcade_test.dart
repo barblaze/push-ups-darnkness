@@ -44,13 +44,13 @@ void main() {
       expect(g.targetForDepth(0.5), greaterThan(g.targetForDepth(0.0)));
     });
 
-    test('extremos con zona muerta: pequeño movimiento no mueve el pájaro',
-        () {
+    test('mapeo lineal sin zona muerta: todo el recorrido responde', () {
       final g = game();
-      expect(g.targetForDepth(0.05), closeTo(0.10, 0.01));
-      expect(g.targetForDepth(0.95), closeTo(0.90, 0.01));
-      expect(g.targetForDepth(0.12), closeTo(0.10, 0.01));
-      expect(g.targetForDepth(0.88), closeTo(0.90, 0.01));
+      // Un pequeño cambio cerca de los extremos ya mueve el pájaro.
+      expect(g.targetForDepth(0.05), closeTo(0.14, 0.01));
+      expect(g.targetForDepth(0.95), closeTo(0.86, 0.01));
+      expect(g.targetForDepth(0.12), closeTo(0.196, 0.01));
+      expect(g.targetForDepth(0.88), closeTo(0.804, 0.01));
     });
 
     test('altitude stays within the playable band', () {
@@ -63,61 +63,6 @@ void main() {
         g.update(0.05, targetAltitude: 1.0, bodyVisible: true);
         expect(g.altitude, lessThanOrEqualTo(0.95));
       }
-    });
-  });
-
-  group('ArcadeGame sensitivity', () {
-    test('sensitivity clamps to 0..100 and exposes smoothing', () {
-      final g = game();
-      expect(g.sensitivity, 50);
-      expect(g.controlSmoothing, closeTo(6.0, 1e-9));
-
-      g.setSensitivity(0);
-      expect(g.sensitivity, 0);
-      expect(g.controlSmoothing, closeTo(4.0, 1e-9));
-
-      g.setSensitivity(100);
-      expect(g.sensitivity, 100);
-      expect(g.controlSmoothing, closeTo(8.0, 1e-9));
-
-      g.setSensitivity(150);
-      expect(g.sensitivity, 100);
-
-      g.setSensitivity(-10);
-      expect(g.sensitivity, 0);
-    });
-
-    test('lower sensitivity means less movement for the same depth', () {
-      final low = game()..setSensitivity(0);
-      final normal = game()..setSensitivity(50);
-      final high = game()..setSensitivity(100);
-
-      // Brazos extendidos (0) siempre van arriba.
-      expect(high.targetForDepth(0.0), closeTo(0.10, 0.01));
-      expect(low.targetForDepth(0.0), greaterThan(high.targetForDepth(0.0)));
-      expect(low.targetForDepth(0.0), closeTo(0.222, 0.03));
-
-      // Flexión completa (1) siempre va abajo.
-      expect(normal.targetForDepth(1.0), closeTo(0.90, 0.01));
-      expect(low.targetForDepth(1.0), closeTo(0.778, 0.03));
-
-      // Recorrido total menor con sensibilidad baja.
-      final lowRange =
-          low.targetForDepth(1.0) - low.targetForDepth(0.0);
-      final normalRange =
-          normal.targetForDepth(1.0) - normal.targetForDepth(0.0);
-      expect(lowRange, lessThan(normalRange));
-    });
-
-    test('low sensitivity is smoother (slower follow)', () {
-      final low = game()..setSensitivity(0);
-      final high = game()..setSensitivity(100);
-      for (var i = 0; i < 5; i++) {
-        low.update(0.05, targetAltitude: 0.8, bodyVisible: true);
-        high.update(0.05, targetAltitude: 0.8, bodyVisible: true);
-      }
-      expect(high.altitude, closeTo(0.8, 0.1));
-      expect(high.altitude, greaterThan(low.altitude));
     });
   });
 
@@ -139,12 +84,13 @@ void main() {
       expect((g.filteredDepth - before).abs(), lessThan(0.4));
     });
 
-    test('deadband ignora cambios mínimos', () {
+    test('responde en vivo a cambios pequeños sin zona muerta', () {
       final g = game();
       g.feedDepth(0.5);
       final before = g.filteredDepth;
       g.feedDepth(0.51);
-      expect(g.filteredDepth, before);
+      expect(g.filteredDepth, isNot(equals(before)));
+      expect(g.filteredDepth, greaterThan(before));
     });
 
     test('targetAltitude refleja la profundidad filtrada', () {
@@ -171,27 +117,39 @@ void main() {
       expect(g.targetAltitude, greaterThan(0.6));
     });
 
-    test('rango degenerado (apenas se mueve) usa el rango completo', () {
+    test('rango fijo: el recorrido completo está disponible sin calibrar',
+        () {
       final g = game();
       for (var i = 0; i < 25; i++) {
         g.feedDepth(0.55);
       }
-      expect(g.filteredDepth, closeTo(0.55, 0.05));
-      expect(g.targetAltitude, closeTo(0.5, 0.1));
+      // 0.55 es el centro del rango de referencia → mitad del recorrido.
+      expect(g.filteredDepth, closeTo(0.4, 0.05));
+      expect(g.targetAltitude, closeTo(0.42, 0.05));
     });
 
-    test('se adapta al nuevo rango sin reiniciar', () {
+    test('solo expande el rango hacia los extremos que alcanza el jugador',
+        () {
       final g = game();
       for (var i = 0; i < 10; i++) {
         g.feedDepth(0.2);
       }
       final shallow = g.filteredDepth;
-      // El jugador baja su rango y la normalización lo sigue en vivo.
       for (var i = 0; i < 10; i++) {
         g.feedDepth(0.6);
       }
       expect(g.filteredDepth, greaterThan(shallow));
       expect(g.filteredDepth, greaterThan(0.5));
+
+      // Mantener la postura no encoge el rango (no deriva).
+      for (var i = 0; i < 50; i++) {
+        g.feedDepth(0.6);
+      }
+      final held = g.filteredDepth;
+      for (var i = 0; i < 50; i++) {
+        g.feedDepth(0.6);
+      }
+      expect((g.filteredDepth - held).abs(), lessThan(0.01));
     });
   });
 
@@ -398,12 +356,12 @@ void main() {
   group('ArcadeGame animacion', () {
     test('birdVelocity refleja la dirección de movimiento', () {
       final g = game();
-      for (var i = 0; i < 20; i++) {
+      for (var i = 0; i < 3; i++) {
         g.update(0.05, targetAltitude: 0.85, bodyVisible: true);
       }
       expect(g.birdVelocity, greaterThan(0));
 
-      for (var i = 0; i < 40; i++) {
+      for (var i = 0; i < 3; i++) {
         g.update(0.05, targetAltitude: 0.15, bodyVisible: true);
       }
       expect(g.birdVelocity, lessThan(0));

@@ -31,7 +31,7 @@ class ArcadeConfig {
     this.gapTop = 0.84,
     this.spacing = 0.5,
     this.birdRadius = 0.032,
-    this.controlSmoothing = 4.0,
+    this.controlRate = 25.0,
     this.invulnerabilitySeconds = 1.0,
     this.startLives = 3,
     this.firstSpawnDelay = 1.2,
@@ -45,7 +45,10 @@ class ArcadeConfig {
   final double gapTop;
   final double spacing;
   final double birdRadius;
-  final double controlSmoothing;
+
+  /// Velocidad con la que el pájaro alcanza su objetivo (mayor = más directo).
+  final double controlRate;
+
   final double invulnerabilitySeconds;
   final int startLives;
   final double firstSpawnDelay;
@@ -80,9 +83,6 @@ class ArcadeGame {
 
   final ArcadeConfig _config;
   final math.Random _random;
-
-  /// Sensibilidad del control [0..100] (default 50). La define el jugador.
-  double _sensitivity = 50;
 
   int _spawnedCount = 0;
 
@@ -123,91 +123,68 @@ class ArcadeGame {
 
   double get birdRadius => _config.birdRadius;
 
-  int get sensitivity => _sensitivity.round();
-
-  /// Ganancia del control: cuánto recorre el pájaro por el mismo recorrido
-  /// de brazos. Sensibilidad baja (50 → 1.0, 0 → 0.5) mueve menos.
-  double get gain => 0.5 + (_sensitivity / 100.0);
-
-  /// Constante de suavizado: baja sens = más suave, alta = más directa.
-  double get controlSmoothing => 4.0 + (_sensitivity / 100.0) * 4.0;
-
-  void setSensitivity(int sensitivity) {
-    _sensitivity = sensitivity.clamp(0, 100).toDouble();
-  }
-
-  /// Profundidad ya filtrada y calibrada [0..1] (para el gauge).
+  /// Profundidad ya filtrada y mapeada al rango real [0..1] (para el gauge).
   double _filteredDepth = 0.5;
+  bool _filteredInit = false;
 
   /// Profundidad suavizada visible (para el gauge de calibración).
   double get filteredDepth => _filteredDepth;
 
-  // Filtro de entrada: elimina el jitter de la pose.
+  /// Peso del frame actual en la señal filtrada (0..1; 1 = sin suavizado).
+  /// Bajo para quitar el jitter de la pose, pero lo bastante alto para que el
+  /// pájaro siga al cuerpo casi en tiempo real.
   static const double _inputFilterK = 0.35;
-  static const double _depthDeadband = 0.02;
 
-  // Calibración adaptativa al rango real de profundidad del jugador. En vez de
-  // un snapshot de unos segundos, los límites se persiguen en vivo: al acercarse
-  // a un extremo se ajustan rápido y se relajan lentamente mientras no se repiten,
-  // de modo que el personaje siempre mapea el movimiento actual del cuerpo.
-  double _calMin = 0;
-  double _calMax = 1;
-  static const double _adaptFast = 0.35;
-  static const double _adaptSlow = 0.02;
-  static const double _minAdaptRange = 0.15;
+  // Rango de referencia del dropRatio en vista frontal (brazos estirados ≈
+  // arriba, pecho al suelo ≈ abajo). Solo se expande hacia los extremos que el
+  // jugador alcanza y nunca se encoge: el control es estable, 1:1, y no deriva
+  // al mantener la postura (la calibración adaptativa anterior se re-centraba
+  // sola y hacía el juego injugable).
+  static const double _rangeMin = 0.35;
+  static const double _rangeMax = 0.85;
+  static const double _expandRate = 0.5;
+
+  /// Altura normalizada del pájaro en sus extremos (0 = arriba).
+  static const double _minAlt = 0.10;
+  static const double _maxAlt = 0.90;
+
+  double _calMin = _rangeMin;
+  double _calMax = _rangeMax;
 
   void _resetCalibration() {
-    _calMin = 0;
-    _calMax = 1;
+    _calMin = _rangeMin;
+    _calMax = _rangeMax;
     _filteredDepth = 0.5;
+    _filteredInit = false;
   }
 
-  void _adaptRange(double r) {
-    _calMin += (r < _calMin ? _adaptFast : _adaptSlow) * (r - _calMin);
-    _calMax += (r > _calMax ? _adaptFast : _adaptSlow) * (r - _calMax);
-    // Rango insuficiente (apenas se movió): caer al rango completo.
-    if (_calMax - _calMin < _minAdaptRange) {
-      _calMin = 0;
-      _calMax = 1;
-    }
-  }
-
-  double _normalizedDepth(double r) {
-    final range = _calMax - _calMin;
-    if (range < _minAdaptRange) return r;
-    return ((r - _calMin) / range).clamp(0.0, 1.0);
-  }
-
-  /// Alimenta la profundidad de la pose: adapta el rango en vivo, ignora
-  /// cambios mínimos (deadband) y suaviza el resto.
-  void feedDepth(double depthRatio) {
+  /// Alimenta el dropRatio de la pose y lo mapea 1:1 a la altura del pájaro.
+  ///
+  /// El rango se adapta en una sola dirección (solo crece) hacia el recorrido
+  /// real del jugador y el filtro exponencial quita el jitter de la pose.
+  void feedDepth(double dropRatio) {
     if (gameOver) return;
-    final r = depthRatio.clamp(0.0, 1.0);
-    _adaptRange(r);
-    final n = _normalizedDepth(r);
-    if ((n - _filteredDepth).abs() < _depthDeadband) return;
+    final r = dropRatio.clamp(0.0, 1.0);
+    if (r < _calMin) _calMin += _expandRate * (r - _calMin);
+    if (r > _calMax) _calMax += _expandRate * (r - _calMax);
+    final n = ((r - _calMin) / (_calMax - _calMin)).clamp(0.0, 1.0);
+    if (!_filteredInit) {
+      _filteredDepth = n;
+      _filteredInit = true;
+      return;
+    }
     _filteredDepth += (n - _filteredDepth) * _inputFilterK;
   }
 
   /// Objetivo actual del pájaro a partir de la profundidad filtrada.
   double get targetAltitude => targetForDepth(_filteredDepth);
 
-  /// Altitud objetivo a partir de la profundidad del push-up:
-  /// brazos extendidos (0) = arriba, flexionados (1) = abajo.
-  ///
-  /// Aplica zonas muertas amplias en los extremos (el ruido de pose no
-  /// tiembla el pájaro) y la ganancia de sensibilidad.
+  /// Mapeo directo y lineal: brazos extendidos (0) = arriba, flexionados (1) =
+  /// abajo. Sin zonas muertas ni ganancia: el pájaro sigue al cuerpo a la misma
+  /// altura y velocidad.
   double targetForDepth(double depthRatio) {
-    final clamped = depthRatio.clamp(0.0, 1.0);
-    const deadTop = 0.14;
-    const deadBottom = 0.86;
-    const minAlt = 0.10;
-    const maxAlt = 0.90;
-    final d = ((clamped - 0.5) * gain + 0.5).clamp(0.0, 1.0);
-    if (d <= deadTop) return minAlt;
-    if (d >= deadBottom) return maxAlt;
-    final t = (d - deadTop) / (deadBottom - deadTop);
-    return minAlt + t * (maxAlt - minAlt);
+    final d = depthRatio.clamp(0.0, 1.0);
+    return _minAlt + d * (_maxAlt - _minAlt);
   }
 
   void reset() {
@@ -239,7 +216,7 @@ class ArcadeGame {
     }
     _target = _lastTarget;
     final previous = altitude;
-    final t = 1 - math.exp(-controlSmoothing * dt);
+    final t = 1 - math.exp(-_config.controlRate * dt);
     altitude += (_target - altitude) * t;
     birdVelocity = dt > 0 ? (altitude - previous) / dt : 0;
 
