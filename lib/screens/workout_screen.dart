@@ -74,7 +74,6 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     _counter = PushUpCounter(
       mode: widget.mode,
-      calibration: widget.state.calibration,
       headCalibrator: _headCal,
     );
     _init();

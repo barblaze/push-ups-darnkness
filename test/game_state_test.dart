@@ -136,22 +136,6 @@ void main() {
       expect(storage.data.defaultPlacement, CameraPlacement.front);
     });
 
-    test('calibration can be saved and persists', () async {
-      final storage = MemoryGameStorage();
-      final state = await GameState.load(storage: storage);
-
-      final cal = DepthCalibration(
-        upSignal: 0.98,
-        downSignal: 0.31,
-        calibratedAt: DateTime(2026, 8, 13),
-      );
-      await state.saveCalibration(cal);
-      expect(state.calibration, isNotNull);
-      expect(state.calibration!.upSignal, closeTo(0.98, 1e-9));
-      expect(state.calibration!.downSignal, closeTo(0.31, 1e-9));
-      expect(storage.data.calibration, isNotNull);
-    });
-
     test('parallel reps accumulate only in parallel mode', () async {
       final state = await GameState.load(storage: MemoryGameStorage());
 
@@ -262,37 +246,6 @@ void main() {
       expect(decoded.sessions.first.reps, 25);
       expect(decoded.sessions.first.mode, PushUpMode.floor);
       expect(decoded.sessions.first.placement, CameraPlacement.front);
-    });
-
-    test('calibration survives json encode/decode', () {
-      final original = PersistedData(
-        totalReps: 0,
-        totalXp: 0,
-        bestSessionReps: 0,
-        bestCombo: 0,
-        streakDays: 0,
-        floorReps: 0,
-        sessionsCount: 0,
-        daysActive: 0,
-        lastActiveDate: null,
-        sessions: const [],
-        defaultMode: PushUpMode.floor,
-        defaultPlacement: CameraPlacement.front,
-        calibration: DepthCalibration(
-          upSignal: 1.02,
-          downSignal: 0.28,
-          calibratedAt: DateTime(2026, 8, 13, 10, 30),
-        ),
-      );
-
-      final decoded = PersistedData.fromJson(original.toJson());
-      expect(decoded.calibration, isNotNull);
-      expect(decoded.calibration!.upSignal, closeTo(1.02, 1e-9));
-      expect(decoded.calibration!.downSignal, closeTo(0.28, 1e-9));
-      expect(
-        decoded.calibration!.calibratedAt,
-        DateTime(2026, 8, 13, 10, 30),
-      );
     });
 
     test('legacy profile placement parses as front', () {

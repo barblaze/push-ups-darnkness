@@ -58,6 +58,11 @@ Joint? _visible(Joint a, Joint b) {
 
 /// Analiza el cuerpo en la vista frontal. La señal de profundidad es la caída
 /// de los hombros hacia las muñecas normalizada por la distancia hombros→caderas.
+///
+/// La forma se mide con la desviación vertical de la cadera respecto a la línea
+/// hombros→tobillos ([sagRatio]): positiva = cadera hundida (sag), negativa =
+/// elevada (pike). Sin tobillos visibles no hay referencia de plancha, así que
+/// se asume la posición correcta y solo se evalúa la profundidad.
 BodyAnalysis analyzeBody(PoseData pose) {
   final shoulders = _visible(pose.leftShoulder, pose.rightShoulder);
   final wrists = _visible(pose.leftWrist, pose.rightWrist);
@@ -80,22 +85,56 @@ BodyAnalysis analyzeBody(PoseData pose) {
   final torso = distance(shoulders, hips);
   if (torso <= 0.001) return notVisible;
   final dropRatio = (wrists.y - shoulders.y) / torso;
+
+  final ankles = _visible(pose.leftAnkle, pose.rightAnkle);
+  if (ankles == null) {
+    return BodyAnalysis(
+      bodyVisible: true,
+      sagRatio: 0,
+      plank: true,
+      plankRatio: 0,
+      dropRatio: dropRatio,
+    );
+  }
+
+  final sagRatio = _hipDeviation(hips, shoulders, ankles);
+  final plankRatio = straightnessFromSag(sagRatio);
   return BodyAnalysis(
     bodyVisible: true,
-    sagRatio: 0,
-    plank: true,
-    plankRatio: 0,
+    sagRatio: sagRatio,
+    plank: plankRatio >= 0.5,
+    plankRatio: plankRatio,
     dropRatio: dropRatio,
   );
 }
 
+/// Desviación vertical de la cadera respecto a la línea hombros→tobillos,
+/// normalizada por la longitud de esa línea (coordenadas y hacia abajo):
+/// positiva = cadera hundida, negativa = cadera elevada. Se usa la proyección
+/// vertical (no la distancia perpendicular) para que sea estable aunque la
+/// pose frontal venga ligeramente rotada.
+double _hipDeviation(Joint hips, Joint shoulders, Joint ankles) {
+  final dx = ankles.x - shoulders.x;
+  final dy = ankles.y - shoulders.y;
+  final length = math.sqrt(dx * dx + dy * dy);
+  if (length <= 0.001) return 0;
+  final t = dx.abs() < 1e-4
+      ? 0.5
+      : ((hips.x - shoulders.x) / dx).clamp(0.0, 1.0);
+  final lineY = shoulders.y + t * dy;
+  return (hips.y - lineY) / length;
+}
+
+/// Evalúa la calidad de la rep completada a partir de la señal mínima alcanzada
+/// en el fondo ([minSignal]) y los umbrales de conteo: más cerca del [upThreshold]
+/// que del [targetThreshold], más profunda fue la rep.
 Quality evaluateQuality({
-  required double minElbowAngle,
-  required double upAngle,
-  required double targetAngle,
+  required double minSignal,
+  required double upThreshold,
+  required double targetThreshold,
   required double minStraightness,
 }) {
-  final depth = ((upAngle - minElbowAngle) / (upAngle - targetAngle))
+  final depth = ((upThreshold - minSignal) / (upThreshold - targetThreshold))
       .clamp(0.0, 1.0);
   final straight = minStraightness.clamp(0.0, 1.0);
   return Quality(

@@ -1,7 +1,7 @@
 name: pushquest
 description: PushQuest - Push-ups como juego con deteccion de pose en tiempo real.
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.1.0+2
 
 environment:
   sdk: ^3.5.0

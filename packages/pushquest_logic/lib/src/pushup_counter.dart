@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 
-import 'depth_calibration.dart';
 import 'head_calibrator.dart';
 import 'placement.dart';
 import 'pose_data.dart';
@@ -63,9 +62,8 @@ class FrameUpdate {
 ///   de fase, de modo que un destello de un frame no se cuenta como rep.
 ///
 /// Los umbrales se adaptan al rango real de movimiento del usuario:
-/// - con una [DepthCalibration] guardada siembran el rango de arranque; sin
-///   ella usan valores fijos por modo (en modo cabeza se ignora la calibración
-///   guardada porque está en escala dropRatio);
+/// - arrancan con valores fijos por modo (la señal en modo cabeza se mide en
+///   la misma escala normalizada, por eso los umbrales fijos sirven igual);
 /// - al iniciar cada rep (entrada a la fase "abajo") se re-anclan al fondo y
 ///   al tope medidos de la rep anterior, de modo que un usuario cuyo rango no
 ///   alcanza los valores por defecto cuenta igualmente sus reps válidas;
@@ -75,17 +73,18 @@ class FrameUpdate {
 class PushUpCounter {
   PushUpCounter({
     this.mode = PushUpMode.floor,
-    DepthCalibration? calibration,
     this.filterStrength = 0.35,
     this.debounceFrames = 3,
     this.headCalibrator,
-  }) : _calibration = calibration {
-    _applyCalibration();
+  }) {
+    _downThreshold = frontDownDropFor(mode);
+    _upThreshold = frontUpDropFor(mode);
+    _targetThreshold = frontTargetDropFor(mode);
+    _calMin = _targetThreshold;
+    _calMax = _upThreshold;
   }
 
   final PushUpMode mode;
-
-  final DepthCalibration? _calibration;
 
   /// Si está presente, la señal de conteo es la altura de la cabeza
   /// (calibrada por él) mientras la cara sea visible.
@@ -100,7 +99,6 @@ class PushUpCounter {
   double _downThreshold = 0;
   double _upThreshold = 0;
   double _targetThreshold = 0;
-  bool _hasCalibration = false;
 
   // Rango de referencia: fondo y tope medidos de la última rep completada.
   // Se re-anclan en la entrada de cada fase "abajo" y de ellos se derivan los
@@ -128,26 +126,8 @@ class PushUpCounter {
   // Rango mínimo para no degenerar los umbrales derivados.
   static const double _minSpan = 0.05;
 
-  void _applyCalibration() {
-    final cal = _calibration;
-    if (headCalibrator == null && cal != null && cal.isValid) {
-      final range = cal.upSignal - cal.downSignal;
-      _downThreshold = cal.downSignal + range * 0.15;
-      _upThreshold = cal.upSignal - range * 0.15;
-      _targetThreshold = cal.downSignal;
-      _hasCalibration = true;
-    } else {
-      _downThreshold = frontDownDropFor(mode);
-      _upThreshold = frontUpDropFor(mode);
-      _targetThreshold = frontTargetDropFor(mode);
-      _hasCalibration = false;
-    }
-    _calMin = _targetThreshold;
-    _calMax = _upThreshold;
-  }
-
   /// Deriva los umbrales del rango de referencia medido (fondo → "abajo",
-  /// tope → "arriba") con el mismo margen del 15% que usa la calibración.
+  /// tope → "arriba") con el mismo margen del 15%.
   void _recomputeThresholds() {
     final span = math.max(_calMax - _calMin, _minSpan);
     _downThreshold = _calMin + span * 0.15;
@@ -208,14 +188,12 @@ class PushUpCounter {
   /// Umbral de profundidad para completar la rep (vuelta arriba suficiente).
   double get upThreshold => _upThreshold;
 
-  bool get calibrated => _hasCalibration;
-
   bool get _requiresPlank => mode == PushUpMode.floor;
 
   CounterPhase _phase = CounterPhase.up;
   int _reps = 0;
   int _combo = 0;
-  double _minSignal = 180;
+  double _minSignal = double.infinity;
   double _minStraightness = 1;
   double _liveDepth = 0;
   double _filtered = 0;
@@ -235,7 +213,7 @@ class PushUpCounter {
     _phase = CounterPhase.up;
     _reps = 0;
     _combo = 0;
-    _minSignal = 180;
+    _minSignal = double.infinity;
     _minStraightness = 1;
     _liveDepth = 0;
     _filtered = 0;
@@ -249,7 +227,7 @@ class PushUpCounter {
   }
 
   FrameUpdate update(PoseData pose, {double elapsedSinceLastFrame = 0}) {
-    if (elapsedSinceLastFrame > 10 && _phase == CounterPhase.up) {
+    if (elapsedSinceLastFrame > 10) {
       _combo = 0;
     }
 
@@ -337,9 +315,9 @@ class PushUpCounter {
           if (_upFrames >= debounceFrames) {
             _reps += 1;
             final quality = evaluateQuality(
-              minElbowAngle: _minSignal,
-              upAngle: _upThreshold,
-              targetAngle: _targetThreshold,
+              minSignal: _minSignal,
+              upThreshold: _upThreshold,
+              targetThreshold: _targetThreshold,
               minStraightness: _minStraightness,
             );
             if (quality.isGood) {
@@ -364,7 +342,7 @@ class PushUpCounter {
       }
     } else {
       _phase = CounterPhase.up;
-      _minSignal = 180;
+      _minSignal = double.infinity;
       _minStraightness = 1;
     }
 

@@ -39,8 +39,6 @@ class GameState extends ChangeNotifier {
 
   CameraPlacement get defaultPlacement => _data.defaultPlacement;
 
-  DepthCalibration? get calibration => _data.calibration;
-
   List<SessionRecord> get sessions => _data.sessions;
 
   int get todayReps {
@@ -93,12 +91,6 @@ class GameState extends ChangeNotifier {
   Future<void> setDefaultMode(PushUpMode mode) async {
     if (_data.defaultMode == mode) return;
     _data = _copyWith(_data, defaultMode: mode);
-    notifyListeners();
-    await _persist();
-  }
-
-  Future<void> saveCalibration(DepthCalibration calibration) async {
-    _data = _copyWith(_data, calibration: calibration);
     notifyListeners();
     await _persist();
   }
@@ -189,7 +181,6 @@ class GameState extends ChangeNotifier {
       defaultPlacement: _data.defaultPlacement,
       hasSeenOnboarding: _data.hasSeenOnboarding,
       hapticsEnabled: _data.hapticsEnabled,
-      calibration: _data.calibration,
     );
 
     final newlyUnlocked = AchievementCatalog.all
@@ -222,7 +213,6 @@ class GameState extends ChangeNotifier {
     bool? hasSeenOnboarding,
     bool? hapticsEnabled,
     int? arcadeSensitivity,
-    DepthCalibration? calibration,
   }) {
     return PersistedData(
       totalReps: data.totalReps,
@@ -242,7 +232,6 @@ class GameState extends ChangeNotifier {
       defaultPlacement: defaultPlacement ?? data.defaultPlacement,
       hasSeenOnboarding: hasSeenOnboarding ?? data.hasSeenOnboarding,
       hapticsEnabled: hapticsEnabled ?? data.hapticsEnabled,
-      calibration: calibration ?? data.calibration,
     );
   }
 }

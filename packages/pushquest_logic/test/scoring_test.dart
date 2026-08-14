@@ -5,9 +5,9 @@ void main() {
   group('evaluateQuality', () {
     test('perfect depth and straightness', () {
       final q = evaluateQuality(
-        minElbowAngle: 80,
-        upAngle: 160,
-        targetAngle: 80,
+        minSignal: 0.35,
+        upThreshold: 0.85,
+        targetThreshold: 0.35,
         minStraightness: 1.0,
       );
       expect(q.depthRatio, 1.0);
@@ -16,12 +16,12 @@ void main() {
 
     test('partial depth', () {
       final q = evaluateQuality(
-        minElbowAngle: 95,
-        upAngle: 160,
-        targetAngle: 80,
+        minSignal: 0.45,
+        upThreshold: 0.85,
+        targetThreshold: 0.35,
         minStraightness: 1.0,
       );
-      expect(q.depthRatio, closeTo(0.8125, 1e-9));
+      expect(q.depthRatio, closeTo(0.8, 1e-9));
       expect(q.isGood, isTrue);
     });
   });

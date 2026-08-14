@@ -122,6 +122,34 @@ PoseData headPose({
   return PoseData(joints);
 }
 
+/// Vista frontal con tobillos y cadera controlable, para probar la evaluación
+/// de forma (sag/pike). La cadera se coloca en la vertical exacta del punto
+/// medio hombros→tobillos con una desviación de [sag]·longitud del cuerpo, de
+/// modo que analyzeBody devuelva sagRatio ≈ [sag]. El parámetro [drop] sigue
+/// la convención de [frontPose]: 1 = arriba (señal alta), 0 = abajo (señal 0).
+PoseData frontPlankPose({required double drop, double sag = 0}) {
+  final joints = List<Joint>.generate(33, (i) => const Joint(0, 0, 0));
+  const wrist = Joint(0.30, 0.75);
+  final shoulder = Joint(0.30, 0.45 + (1 - drop) * 0.30);
+  const ankle = Joint(0.31, 0.90);
+  final bodyLen = distance(shoulder, ankle);
+  final hip = Joint(0.305, (shoulder.y + ankle.y) / 2 + sag * bodyLen);
+
+  joints[11] = shoulder;
+  joints[12] = shoulder;
+  joints[13] = Joint(0.30, 0.62);
+  joints[14] = Joint(0.30, 0.62);
+  joints[15] = wrist;
+  joints[16] = wrist;
+  joints[23] = hip;
+  joints[24] = hip;
+  joints[25] = Joint(0.31, 0.83);
+  joints[26] = Joint(0.31, 0.83);
+  joints[27] = ankle;
+  joints[28] = ankle;
+  return PoseData(joints);
+}
+
 PoseData highFivePose({required bool handUp}) {
   final joints = List<Joint>.generate(33, (i) => const Joint(0, 0, 0));
   const shoulder = Joint(0.3, 0.6);

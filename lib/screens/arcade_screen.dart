@@ -64,7 +64,6 @@ class _ArcadeScreenState extends State<ArcadeScreen>
     super.initState();
     _counter = PushUpCounter(
       mode: PushUpMode.arcade,
-      calibration: widget.state.calibration,
       headCalibrator: _headCal,
     );
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);

@@ -5,14 +5,12 @@ import 'pose_builder.dart';
 
 PushUpCounter make({
   PushUpMode mode = PushUpMode.floor,
-  DepthCalibration? calibration,
   double filterStrength = 0.35,
   int debounceFrames = 3,
   HeadCalibrator? headCalibrator,
 }) =>
     PushUpCounter(
       mode: mode,
-      calibration: calibration,
       filterStrength: filterStrength,
       debounceFrames: debounceFrames,
       headCalibrator: headCalibrator,
@@ -153,11 +151,58 @@ void main() {
       expect(deep.feedback, FeedbackKind.great);
     });
 
-    test('front ignores hip sag (no ankles needed)', () {
+    test('front pose without ankles assumes a plank (no sag gate)', () {
       final counter = make();
       final update = counter.update(frontPose(drop: 1.0));
       expect(update.feedback, isNot(FeedbackKind.hipSag));
       expect(update.sagRatio, 0.0);
+    });
+
+    test('counts a floor rep with mild sag but marks it not good', () {
+      final counter = make(filterStrength: 1.0);
+      feed(counter, frontPlankPose(drop: 1, sag: 0.2));
+      expect(counter.phase, CounterPhase.up);
+      feed(counter, frontPlankPose(drop: 0, sag: 0.2));
+      expect(counter.phase, CounterPhase.down);
+      final rep = completeRep(counter, frontPlankPose(drop: 1, sag: 0.2));
+      expect(counter.reps, 1);
+      expect(rep, isNotNull);
+      expect(rep!.isGood, isFalse);
+      expect(rep.straightness, closeTo(0.6522, 1e-3));
+      expect(rep.combo, 0);
+    });
+
+    test('floor blocks a rep with hips sagged out of the plank', () {
+      final counter = make(filterStrength: 1.0);
+      feed(counter, frontPlankPose(drop: 1, sag: 0.35));
+      expect(counter.phase, CounterPhase.up);
+      feed(counter, frontPlankPose(drop: 0, sag: 0.35));
+      expect(counter.phase, CounterPhase.up);
+      final rep = completeRep(counter, frontPlankPose(drop: 1, sag: 0.35));
+      expect(counter.reps, 0);
+      expect(rep, isNull);
+      final update = counter.update(frontPlankPose(drop: 1, sag: 0.35));
+      expect(update.feedback, FeedbackKind.hipSag);
+    });
+
+    test('feedback hipPike when hips rise above the shoulder-ankle line', () {
+      final counter = make();
+      final update = counter.update(frontPlankPose(drop: 1, sag: -0.2));
+      expect(update.sagRatio, closeTo(-0.2, 1e-9));
+      expect(update.feedback, FeedbackKind.hipPike);
+    });
+
+    test('combo resets after a long pause even in the down phase', () {
+      final counter = make();
+      feed(counter, frontPose(drop: 1.0));
+      feed(counter, frontPose(drop: 0.3));
+      final first = completeRep(counter, frontPose(drop: 1.0));
+      expect(first!.combo, 1);
+      feed(counter, frontPose(drop: 0.3));
+      expect(counter.phase, CounterPhase.down);
+      final paused =
+          counter.update(frontPose(drop: 0.3), elapsedSinceLastFrame: 12);
+      expect(paused.combo, 0);
     });
 
     test('requires hips visible', () {
@@ -228,62 +273,6 @@ void main() {
       final rep = completeRep(counter, frontPose(drop: 1.0));
       expect(counter.reps, 1);
       expect(rep, isNotNull);
-    });
-  });
-
-  group('PushUpCounter calibración', () {
-    test('sin calibración usa los umbrales fijos', () {
-      final counter = make();
-      expect(counter.calibrated, isFalse);
-      expect(counter.downThreshold, closeTo(0.55, 1e-9));
-      expect(counter.upThreshold, closeTo(0.85, 1e-9));
-    });
-
-    test('deriva los umbrales del rango real del usuario', () {
-      final cal = DepthCalibration(
-        upSignal: 1.0,
-        downSignal: 0.6,
-        calibratedAt: DateTime(2026, 8, 1),
-      );
-      final counter = make(calibration: cal, filterStrength: 1.0);
-      expect(counter.calibrated, isTrue);
-      // down = 0.6 + 0.15 * 0.4 = 0.66; up = 1.0 - 0.15 * 0.4 = 0.94.
-      expect(counter.downThreshold, closeTo(0.66, 1e-9));
-      expect(counter.upThreshold, closeTo(0.94, 1e-9));
-
-      feed(counter, frontPose(drop: 1.0));
-      feed(counter, frontPose(drop: 0.62));
-      expect(counter.phase, CounterPhase.down);
-      final rep = completeRep(counter, frontPose(drop: 1.0));
-      expect(counter.reps, 1);
-      expect(rep, isNotNull);
-    });
-
-    test('una bajada fuera del rango real no cuenta con calibración', () {
-      final cal = DepthCalibration(
-        upSignal: 1.0,
-        downSignal: 0.6,
-        calibratedAt: DateTime(2026, 8, 1),
-      );
-      final counter = make(calibration: cal, filterStrength: 1.0);
-      feed(counter, frontPose(drop: 1.0));
-      feed(counter, frontPose(drop: 0.7));
-      expect(counter.phase, CounterPhase.up);
-      final rep = completeRep(counter, frontPose(drop: 1.0));
-      expect(counter.reps, 0);
-      expect(rep, isNull);
-    });
-
-    test('calibración inválida cae a los umbrales fijos', () {
-      final cal = DepthCalibration(
-        upSignal: 0.6,
-        downSignal: 0.5,
-        calibratedAt: DateTime(2026, 8, 1),
-      );
-      final counter = make(calibration: cal);
-      expect(counter.calibrated, isFalse);
-      expect(counter.downThreshold, closeTo(0.55, 1e-9));
-      expect(counter.upThreshold, closeTo(0.85, 1e-9));
     });
   });
 
@@ -358,26 +347,6 @@ void main() {
       expect(counter.phase, CounterPhase.up);
       feed(counter, frontPose(drop: 0.72), 60);
       expect(counter.reps, 1);
-    });
-
-    test('la calibración guardada siembra pero el rango se re-ancla a lo medido',
-        () {
-      final cal = DepthCalibration(
-        upSignal: 1.0,
-        downSignal: 0.6,
-        calibratedAt: DateTime(2026, 8, 1),
-      );
-      final counter = make(calibration: cal, filterStrength: 1.0);
-      expect(counter.downThreshold, closeTo(0.66, 1e-9));
-      expect(counter.upThreshold, closeTo(0.94, 1e-9));
-
-      fullCycle(counter, 0.72, 0.5);
-      expect(counter.reps, 1);
-      fullCycle(counter, 0.72, 0.5);
-
-      // Tras el re-anclaje los umbrales se acercan al rango medido [0.5, 0.72].
-      expect(counter.upThreshold, closeTo(0.687, 0.02));
-      expect(counter.downThreshold, closeTo(0.533, 0.02));
     });
 
     test('free/arcade también re-ancla sus umbrales', () {

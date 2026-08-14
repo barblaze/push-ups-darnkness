@@ -9,8 +9,11 @@ forma, con puntos, rachas, niveles, avatar, misión diaria, logros y estadístic
 - Feedback en vivo: profundidad, cadera baja/elevada, plancha, no visibilidad.
 - Reps "perfectas" dan más puntos y mantienen el combo; una mala lo rompe.
 - Objetivo diario determinista (6-24 reps) con bonus de +50 XP.
-- Posición de cámara configurable: **Perfil** (celular de lado) o **De frente**
-  (celular vertical enfrente de ti).
+- Vista frontal: la cámara te ve de frente y el conteo se normaliza con el
+  recorrido real de tu cabeza y cuerpo (se auto-calibra en la cuenta atrás),
+  sin calibración manual.
+- Forma evaluada en vivo: profundidad de bajada y cadera baja/elevada respecto
+  a la línea hombros→tobillos (sag/pike/plancha).
 - Sin servidores: todos los datos viven en el dispositivo.
 
 ## Estructura
@@ -46,18 +49,9 @@ No necesitas toolchain local de Flutter/Android:
 
 1. Abre PushQuest y dale permiso de cámara.
 2. Elige modo **Piso**, **Paralelas** o **Libre**.
-3. Elige la posición de cámara: **Perfil** (celular de lado, viendo tu perfil
-   completo) o **De frente** (celular vertical enfrente de ti, con los pies
-   dentro del cuadro).
-4. Toca **ENTRENAR** y haz push-ups: cuenta reps, evalúa tu forma y acumula
-   puntos.
-
-## Probar la detección
-
-Desde el inicio toca **Probar detección** para ver en vivo el esqueleto y un HUD
-de diagnóstico (FPS, ms por frame, ángulo de codo, umbral de conteo, plancha y
-visibilidad de los puntos clave). Usa la posición de cámara seleccionada en el
-inicio. Útil para verificar la cámara y calibrar los umbrales de conteo.
+3. Colócate de frente al celular (vertical, con los pies dentro del cuadro) y
+   toca **ENTRENAR**: la cuenta atrás calibra el rango de tu cabeza y luego la
+   app cuenta tus push-ups, evalúa tu forma y acumula puntos.
 
 ## Desarrollo local
 
