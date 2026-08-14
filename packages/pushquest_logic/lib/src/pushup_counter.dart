@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'depth_calibration.dart';
+import 'head_calibrator.dart';
 import 'placement.dart';
 import 'pose_data.dart';
 import 'pushup_mode.dart';
@@ -51,7 +52,10 @@ class FrameUpdate {
   final CompletedRep? completedRep;
 }
 
-/// Cuenta reps usando la señal de profundidad de la vista frontal (dropRatio).
+/// Cuenta reps usando la señal de profundidad de la vista frontal. Por defecto
+/// la señal es el dropRatio (caída de los hombros hacia las muñecas); con un
+/// [HeadCalibrator] pasa a ser la altura de la cabeza (1 = cabeza arriba),
+/// cayendo al dropRatio cuando la cara no es visible.
 ///
 /// Para evitar el sobreconteo por ruido de la pose:
 /// - suaviza la señal con un filtro exponencial (EMA);
@@ -60,7 +64,8 @@ class FrameUpdate {
 ///
 /// Los umbrales se adaptan al rango real de movimiento del usuario:
 /// - con una [DepthCalibration] guardada siembran el rango de arranque; sin
-///   ella usan valores fijos por modo;
+///   ella usan valores fijos por modo (en modo cabeza se ignora la calibración
+///   guardada porque está en escala dropRatio);
 /// - al iniciar cada rep (entrada a la fase "abajo") se re-anclan al fondo y
 ///   al tope medidos de la rep anterior, de modo que un usuario cuyo rango no
 ///   alcanza los valores por defecto cuenta igualmente sus reps válidas;
@@ -73,6 +78,7 @@ class PushUpCounter {
     DepthCalibration? calibration,
     this.filterStrength = 0.35,
     this.debounceFrames = 3,
+    this.headCalibrator,
   }) : _calibration = calibration {
     _applyCalibration();
   }
@@ -80,6 +86,10 @@ class PushUpCounter {
   final PushUpMode mode;
 
   final DepthCalibration? _calibration;
+
+  /// Si está presente, la señal de conteo es la altura de la cabeza
+  /// (calibrada por él) mientras la cara sea visible.
+  final HeadCalibrator? headCalibrator;
 
   /// Peso del frame actual en la señal filtrada (0..1; 1 = sin suavizado).
   final double filterStrength;
@@ -120,7 +130,7 @@ class PushUpCounter {
 
   void _applyCalibration() {
     final cal = _calibration;
-    if (cal != null && cal.isValid) {
+    if (headCalibrator == null && cal != null && cal.isValid) {
       final range = cal.upSignal - cal.downSignal;
       _downThreshold = cal.downSignal + range * 0.15;
       _upThreshold = cal.upSignal - range * 0.15;
@@ -244,7 +254,9 @@ class PushUpCounter {
     }
 
     final analysis = analyzeBody(pose);
-    if (!analysis.bodyVisible) {
+    final calibrator = headCalibrator;
+    final faceVisible = calibrator != null && calibrator.faceVisible(pose);
+    if (!analysis.bodyVisible && !faceVisible) {
       _liveDepth = 0;
       return FrameUpdate(
         phase: _phase,
@@ -257,7 +269,12 @@ class PushUpCounter {
       );
     }
 
-    final signal = _filterSignal(analysis.dropRatio);
+    // Con la cara visible la señal es la altura de la cabeza (invertida para
+    // seguir el mismo sentido que el dropRatio: arriba = señal alta); si la
+    // cara no se ve, cae al dropRatio de los hombros.
+    final signal = _filterSignal(
+      faceVisible ? 1.0 - calibrator.headDepth(pose) : analysis.dropRatio,
+    );
 
     _liveDepth =
         ((_upThreshold - signal) / (_upThreshold - _targetThreshold))
@@ -361,7 +378,7 @@ class PushUpCounter {
       depthRatio: _liveDepth,
       sagRatio: analysis.sagRatio,
       feedback: feedback,
-      bodyVisible: true,
+      bodyVisible: analysis.bodyVisible || faceVisible,
       completedRep: completedRep,
     );
   }

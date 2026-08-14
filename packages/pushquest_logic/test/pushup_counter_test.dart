@@ -8,12 +8,14 @@ PushUpCounter make({
   DepthCalibration? calibration,
   double filterStrength = 0.35,
   int debounceFrames = 3,
+  HeadCalibrator? headCalibrator,
 }) =>
     PushUpCounter(
       mode: mode,
       calibration: calibration,
       filterStrength: filterStrength,
       debounceFrames: debounceFrames,
+      headCalibrator: headCalibrator,
     );
 
 /// Alimenta [pose] [times] veces.
@@ -397,6 +399,129 @@ void main() {
       // [0.3, 0.95]: abajo = 0.3 + 0.15 * 0.65 = 0.3975, arriba = 0.95 - 0.0975.
       expect(counter.upThreshold, closeTo(0.8525, 0.02));
       expect(counter.downThreshold, closeTo(0.3975, 0.02));
+    });
+  });
+
+  group('PushUpCounter cabeza', () {
+    /// Simula un ciclo completo de push-up moviendo la cabeza entre [topY]
+    /// (arriba) y [bottomY] (abajo) con el cuerpo en postura coherente.
+    void headCycle(
+      PushUpCounter c,
+      double topY,
+      double bottomY,
+    ) {
+      for (final f in [0.0, 0.33, 0.5, 0.7, 1.0]) {
+        feed(
+          c,
+          headPose(
+            noseY: topY + (bottomY - topY) * f,
+            drop: 1.0 - 0.7 * f,
+          ),
+          4,
+        );
+      }
+      for (final f in [0.6, 0.3, 0.0]) {
+        feed(
+          c,
+          headPose(
+            noseY: topY + (bottomY - topY) * f,
+            drop: 1.0 - 0.7 * f,
+          ),
+          4,
+        );
+      }
+      feed(c, headPose(noseY: topY, drop: 1.0), 15);
+    }
+
+    test('cuenta reps con la señal de la cabeza calibrada', () {
+      final cal = HeadCalibrator();
+      final counter = make(
+        mode: PushUpMode.free,
+        filterStrength: 1.0,
+        headCalibrator: cal,
+      );
+      // Calibración en la cuenta atrás: nariz entre 0.2 (arriba) y 0.8 (abajo).
+      cal.sample(headPose(noseY: 0.2, drop: 1.0));
+      cal.sample(headPose(noseY: 0.8, drop: 0.3));
+      expect(cal.calibrated, isTrue);
+
+      feed(counter, headPose(noseY: 0.2, drop: 1.0));
+      expect(counter.phase, CounterPhase.up);
+      feed(counter, headPose(noseY: 0.8, drop: 0.3));
+      expect(counter.phase, CounterPhase.down);
+      final rep = completeRep(counter, headPose(noseY: 0.2, drop: 1.0));
+      expect(counter.reps, 1);
+      expect(rep, isNotNull);
+    });
+
+    test('sin calibrar cae al rango fijo por defecto', () {
+      final cal = HeadCalibrator();
+      final counter = make(
+        mode: PushUpMode.free,
+        filterStrength: 1.0,
+        headCalibrator: cal,
+      );
+      expect(cal.calibrated, isFalse);
+
+      feed(counter, headPose(noseY: 0.15, drop: 1.0));
+      feed(counter, headPose(noseY: 0.85, drop: 0.3));
+      expect(counter.phase, CounterPhase.down);
+      final rep = completeRep(counter, headPose(noseY: 0.15, drop: 1.0));
+      expect(counter.reps, 1);
+      expect(rep, isNotNull);
+    });
+
+    test('cae al dropRatio cuando la cara no es visible', () {
+      final cal = HeadCalibrator();
+      final counter = make(
+        mode: PushUpMode.free,
+        filterStrength: 1.0,
+        headCalibrator: cal,
+      );
+      cal.sample(headPose(noseY: 0.2, drop: 1.0));
+      cal.sample(headPose(noseY: 0.8, drop: 0.3));
+      expect(cal.calibrated, isTrue);
+
+      feed(counter, headPose(noseY: 0.5, drop: 1.0, faceVisible: false));
+      expect(counter.phase, CounterPhase.up);
+      feed(counter, headPose(noseY: 0.5, drop: 0.3, faceVisible: false));
+      expect(counter.phase, CounterPhase.down);
+      final rep = completeRep(
+        counter,
+        headPose(noseY: 0.5, drop: 1.0, faceVisible: false),
+      );
+      expect(counter.reps, 1);
+      expect(rep, isNotNull);
+    });
+
+    test('el re-anclaje adapta los umbrales a la cabeza', () {
+      final cal = HeadCalibrator();
+      final counter = make(
+        mode: PushUpMode.free,
+        filterStrength: 1.0,
+        headCalibrator: cal,
+      );
+      cal.sample(headPose(noseY: 0.35, drop: 1.0));
+      cal.sample(headPose(noseY: 0.65, drop: 0.3));
+      expect(cal.calibrated, isTrue);
+
+      headCycle(counter, 0.35, 0.65);
+      expect(counter.reps, 1);
+      headCycle(counter, 0.35, 0.65);
+      headCycle(counter, 0.35, 0.65);
+      expect(counter.reps, 3);
+    });
+
+    test('no cuenta si ni la cara ni el cuerpo son visibles', () {
+      final cal = HeadCalibrator();
+      final counter = make(
+        mode: PushUpMode.free,
+        headCalibrator: cal,
+      );
+      final update = counter.update(invisible());
+      expect(update.bodyVisible, isFalse);
+      expect(update.feedback, FeedbackKind.notVisible);
+      expect(counter.reps, 0);
     });
   });
 }

@@ -96,6 +96,32 @@ PoseData frontBottomPose() {
   return PoseData(joints);
 }
 
+/// Pose frontal con cabeza: el cuerpo usa el builder [frontPose] (drop 1 =
+/// arriba, drop 0 = abajo) y la nariz se coloca en [noseY] (coordenada
+/// normalizada, mayor = más abajo).
+PoseData headPose({
+  required double noseY,
+  required double drop,
+  bool faceVisible = true,
+}) {
+  final joints = List<Joint>.generate(33, (i) => const Joint(0, 0, 0));
+  const shoulder = Joint(0.3, 0.4);
+  const hip = Joint(0.3, 0.7);
+  final torso = hip.y - shoulder.y;
+  final wrist = Joint(0.3, shoulder.y + drop * torso);
+
+  joints[0] = Joint(0.3, noseY, faceVisible ? 1.0 : 0.0);
+  joints[11] = shoulder;
+  joints[12] = shoulder;
+  joints[13] = Joint(0.3, 0.55);
+  joints[14] = Joint(0.3, 0.55);
+  joints[15] = wrist;
+  joints[16] = wrist;
+  joints[23] = hip;
+  joints[24] = hip;
+  return PoseData(joints);
+}
+
 PoseData highFivePose({required bool handUp}) {
   final joints = List<Joint>.generate(33, (i) => const Joint(0, 0, 0));
   const shoulder = Joint(0.3, 0.6);

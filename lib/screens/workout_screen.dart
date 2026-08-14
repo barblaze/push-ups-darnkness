@@ -33,6 +33,7 @@ class WorkoutScreen extends StatefulWidget {
 class _WorkoutScreenState extends State<WorkoutScreen> {
   final PoseDetectorService _poseDetector = PoseDetectorService();
   final HighFiveDetector _highFive = HighFiveDetector();
+  final HeadCalibrator _headCal = HeadCalibrator();
   late final PushUpCounter _counter;
 
   static final PoseData _emptyPose = PoseData(
@@ -74,6 +75,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
     _counter = PushUpCounter(
       mode: widget.mode,
       calibration: widget.state.calibration,
+      headCalibrator: _headCal,
     );
     _init();
   }
@@ -184,7 +186,10 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
 
       if (mounted) setState(() => _lastPose = pose);
 
-      if (!_counting) return;
+      if (!_counting) {
+        _headCal.sample(pose ?? _emptyPose);
+        return;
+      }
 
       if (_highFive.update(pose ?? _emptyPose, dt)) {
         _handleHighFive();

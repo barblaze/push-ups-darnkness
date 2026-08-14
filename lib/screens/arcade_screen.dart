@@ -38,6 +38,7 @@ class _ArcadeScreenState extends State<ArcadeScreen>
   final PoseDetectorService _poseDetector = PoseDetectorService();
   late final PushUpCounter _counter;
   final ArcadeGame _game = ArcadeGame();
+  final HeadCalibrator _headCal = HeadCalibrator();
 
   CameraController? _cameraController;
   Ticker? _ticker;
@@ -64,6 +65,7 @@ class _ArcadeScreenState extends State<ArcadeScreen>
     _counter = PushUpCounter(
       mode: PushUpMode.arcade,
       calibration: widget.state.calibration,
+      headCalibrator: _headCal,
     );
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     _init();
@@ -127,6 +129,7 @@ class _ArcadeScreenState extends State<ArcadeScreen>
   }
 
   void _startCountdown() {
+    _headCal.reset();
     setState(() {
       _countdown = 3;
       _phase = _ArcadePhase.countdown;
@@ -159,13 +162,20 @@ class _ArcadeScreenState extends State<ArcadeScreen>
         rotation: rotation,
       );
       if (_phase == _ArcadePhase.playing || _phase == _ArcadePhase.countdown) {
-        final update = _counter.update(pose ?? _emptyPose());
+        final p = pose ?? _emptyPose();
+        if (_phase == _ArcadePhase.countdown) {
+          _headCal.sample(p);
+        }
+        final update = _counter.update(p);
         _bestCombo = math.max(_bestCombo, update.combo);
         if (update.completedRep != null) Haptics.rep();
         if (update.bodyVisible) {
-          // Control directo 1:1 con el dropRatio crudo de la pose: el pájaro
-          // sigue al cuerpo a la misma altura y velocidad.
-          _game.feedDepth(analyzeBody(pose ?? _emptyPose()).dropRatio);
+          // Control 1:1 con la cabeza: arriba sube el pájaro y abajo baja. Si
+          // la cara no es visible cae al dropRatio invertido (mismo sentido).
+          final analysis = analyzeBody(p);
+          _game.feedDepth(
+            _headCal.faceVisible(p) ? _headCal.headDepth(p) : 1 - analysis.dropRatio,
+          );
         }
         if (mounted) {
           setState(() {
