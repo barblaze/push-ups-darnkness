@@ -8,6 +8,10 @@ class PoseDetectorService {
   NpuPoseDetector? _detector;
   AccelerationMode _accelerationMode = AccelerationMode.unknown;
 
+  /// Formato de imagen de la cámara; es constante durante toda la sesión
+  /// (se fija en [initializeCamera]), así que solo se deduce en el primer frame.
+  String? _format;
+
   bool get isInitialized => _detector?.isInitialized ?? false;
 
   AccelerationMode get accelerationMode => _accelerationMode;
@@ -35,7 +39,7 @@ class PoseDetectorService {
           },
         )
         .toList();
-    final format = switch (image.format.group) {
+    final format = _format ??= switch (image.format.group) {
       ImageFormatGroup.yuv420 => 'yuv420',
       ImageFormatGroup.nv21 => 'nv21',
       _ => 'bgra8888',
@@ -57,5 +61,6 @@ class PoseDetectorService {
   void dispose() {
     _detector?.dispose();
     _detector = null;
+    _format = null;
   }
 }

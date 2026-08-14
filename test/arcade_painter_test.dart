@@ -8,7 +8,6 @@ void main() {
     ArcadeGame game, {
     int best = 5,
     bool showDepthGauge = false,
-    double depthRatio = 0.5,
   }) {
     return MaterialApp(
       home: SizedBox(
@@ -20,7 +19,6 @@ void main() {
             characterColor: const Color(0xFFFF6B35),
             bestScore: best,
             showDepthGauge: showDepthGauge,
-            depthRatio: depthRatio,
           ),
         ),
       ),
@@ -80,8 +78,9 @@ void main() {
     final game = ArcadeGame(
       config: const ArcadeConfig(firstSpawnDelay: 100),
     );
+    game.feedDepth(0.7);
     await tester.pumpWidget(
-      wrap(game, showDepthGauge: true, depthRatio: 0.7),
+      wrap(game, showDepthGauge: true),
     );
     await tester.pump(const Duration(milliseconds: 100));
     expect(tester.takeException(), isNull);

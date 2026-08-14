@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:pushquest_logic/pushquest_logic.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../game/camera_setup.dart';
 import '../pose/pose_detector_service.dart';
@@ -30,11 +31,23 @@ class WorkoutScreen extends StatefulWidget {
   State<WorkoutScreen> createState() => _WorkoutScreenState();
 }
 
-class _WorkoutScreenState extends State<WorkoutScreen> {
+class _WorkoutScreenState extends State<WorkoutScreen>
+    with WidgetsBindingObserver {
   final PoseDetectorService _poseDetector = PoseDetectorService();
   final HighFiveDetector _highFive = HighFiveDetector();
   final HeadCalibrator _headCal = HeadCalibrator();
   late final PushUpCounter _counter;
+
+  /// Procesa como mucho un frame cada este intervalo (≈10 fps) para recortar
+  /// el trabajo de ML Kit sin perder precisión de conteo.
+  static const int _frameIntervalMs = 100;
+
+  final Stopwatch _frameClock = Stopwatch();
+
+  /// Pose y análisis del último frame procesado, notificados por separado para
+  /// repintar solo los subárboles que cambian por frame.
+  final ValueNotifier<PoseData?> _pose = ValueNotifier(null);
+  final ValueNotifier<FrameUpdate?> _update = ValueNotifier(null);
 
   static final PoseData _emptyPose = PoseData(
     List.generate(PoseData.count, (_) => const Joint(0, 0, 0)),
@@ -54,14 +67,15 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   bool _stoppingByHighFive = false;
   bool _permissionDenied = false;
 
+  bool _backgrounded = false;
+  DateTime? _bgAt;
+
   DateTime? _sessionStart;
   Timer? _elapsedTimer;
   int _elapsedSeconds = 0;
   int _totalPoints = 0;
   int _bestCombo = 0;
 
-  PoseData? _lastPose;
-  FrameUpdate? _lastUpdate;
   DateTime? _lastFrameTime;
 
   bool _popupVisible = false;
@@ -71,6 +85,8 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _frameClock.start();
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     _counter = PushUpCounter(
       mode: widget.mode,
@@ -81,13 +97,51 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+    unawaited(WakelockPlus.disable());
     _countdownTimer?.cancel();
     _elapsedTimer?.cancel();
     _cameraController?.stopImageStream();
     _cameraController?.dispose();
     _poseDetector.dispose();
+    _pose.dispose();
+    _update.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (!_backgrounded) return;
+      _backgrounded = false;
+      final pause = DateTime.now().difference(_bgAt!);
+      _bgAt = null;
+      if (_counting && _sessionStart != null) {
+        _sessionStart = _sessionStart!.add(pause);
+      }
+      if (_counting && _elapsedTimer == null) {
+        _elapsedTimer = _startElapsedTimer();
+      }
+      setState(() {});
+    } else if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      if (_backgrounded) return;
+      _backgrounded = true;
+      _bgAt = DateTime.now();
+      _elapsedTimer?.cancel();
+      _elapsedTimer = null;
+    }
+  }
+
+  Timer _startElapsedTimer() {
+    return Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted || _sessionStart == null) return;
+      setState(() {
+        _elapsedSeconds = DateTime.now().difference(_sessionStart!).inSeconds;
+      });
+    });
   }
 
   Future<void> _init() async {
@@ -156,19 +210,18 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
           _status = '¡Ya!';
           _sessionStart = DateTime.now();
         });
-        _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-          if (!mounted || _sessionStart == null) return;
-          setState(() {
-            _elapsedSeconds =
-                DateTime.now().difference(_sessionStart!).inSeconds;
-          });
-        });
+        unawaited(WakelockPlus.enable());
+        _elapsedTimer = _startElapsedTimer();
       }
     });
   }
 
   Future<void> _onFrame(CameraImage image) async {
-    if (_isProcessing || _finished || _fatalError != null) return;
+    if (_isProcessing || _finished || _fatalError != null || _backgrounded) {
+      return;
+    }
+    if (_frameClock.elapsedMilliseconds < _frameIntervalMs) return;
+    _frameClock.reset();
     _isProcessing = true;
     try {
       final rotation = _cameraController?.description.sensorOrientation ?? 0;
@@ -183,7 +236,8 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
           : now.difference(_lastFrameTime!).inMilliseconds / 1000;
       _lastFrameTime = now;
 
-      if (mounted) setState(() => _lastPose = pose);
+      if (!mounted) return;
+      _pose.value = pose;
 
       if (!_counting) {
         _headCal.sample(pose ?? _emptyPose);
@@ -209,11 +263,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
         if (mounted) _showRepPopup(completed);
       }
 
-      if (mounted) {
-        setState(() {
-          _lastUpdate = update;
-        });
-      }
+      _update.value = update;
     } catch (_) {
       // Un frame fallido no debe detener el entrenamiento.
     } finally {
@@ -238,8 +288,8 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
       _bestCombo = 0;
       _elapsedSeconds = 0;
       _sessionStart = DateTime.now();
-      _lastPose = null;
-      _lastUpdate = null;
+      _pose.value = null;
+      _update.value = null;
       _lastFrameTime = null;
       _popupVisible = false;
     });
@@ -285,6 +335,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
     if (_finished) return;
     _finished = true;
     _elapsedTimer?.cancel();
+    unawaited(WakelockPlus.disable());
     await _cameraController?.stopImageStream();
     await _cameraController?.dispose();
     _cameraController = null;
@@ -415,26 +466,43 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
       fit: StackFit.expand,
       children: [
         CameraPreview(controller),
-        if (_lastPose != null)
-          CustomPaint(
-            painter: PoseOverlayPainter(
-              pose: _lastPose!,
-              mirror: _mirrorPreview,
-              color: AppColors.accent,
-            ),
-          ),
+        ValueListenableBuilder<PoseData?>(
+          valueListenable: _pose,
+          builder: (context, pose, _) {
+            if (pose == null) return const SizedBox.shrink();
+            return CustomPaint(
+              painter: PoseOverlayPainter(
+                pose: pose,
+                mirror: _mirrorPreview,
+                color: AppColors.accent,
+              ),
+            );
+          },
+        ),
         SafeArea(
           child: Column(
             children: [
               _topBar(),
               const Spacer(),
-              if (_counting) _repCounter(),
+              if (_counting)
+                ValueListenableBuilder<FrameUpdate?>(
+                  valueListenable: _update,
+                  builder: (context, _, __) => _repCounter(),
+                ),
               const Spacer(),
-              if (_counting) _feedbackPanel(),
+              if (_counting)
+                ValueListenableBuilder<FrameUpdate?>(
+                  valueListenable: _update,
+                  builder: (context, _, __) => _feedbackPanel(),
+                ),
             ],
           ),
         ),
-        if (!_counting) _countdownOverlay(),
+        if (!_counting)
+          ValueListenableBuilder<PoseData?>(
+            valueListenable: _pose,
+            builder: (context, pose, _) => _countdownOverlay(pose),
+          ),
         if (_stoppingByHighFive) _highFiveOverlay(),
         _repPopup(),
       ],
@@ -474,13 +542,11 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
     );
   }
 
-  Widget _countdownOverlay() {
-    final pose = _lastPose;
+  Widget _countdownOverlay(PoseData? pose) {
     final analysis = pose == null ? null : analyzeBody(pose);
     final bodyOk = analysis?.bodyVisible ?? false;
     final requiresPlank = widget.mode == PushUpMode.floor;
-    final positionOk =
-        bodyOk && (!requiresPlank || (analysis?.plank ?? false));
+    final positionOk = bodyOk && (!requiresPlank || (analysis?.plank ?? false));
     return IgnorePointer(
       child: Container(
         color: Colors.black.withValues(alpha: 0.45),
@@ -642,7 +708,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   }
 
   Widget _feedbackPanel() {
-    final update = _lastUpdate;
+    final update = _update.value;
     return Container(
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(16),

@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
+
 enum ArcadeEvent { none, passed, hit }
 
 class ArcadeObstacle {
@@ -54,7 +56,9 @@ class ArcadeConfig {
   final double firstSpawnDelay;
 }
 
-class ArcadeGame {
+/// Estado del mini juego. Notifica a los listeners (el painter y el HUD) tras
+/// cada cambio para repintar sin reconstruir el árbol de widgets por frame.
+class ArcadeGame extends ChangeNotifier {
   ArcadeGame({ArcadeConfig? config, math.Random? random})
       : _config = config ?? const ArcadeConfig(),
         _random = random ?? math.Random() {
@@ -174,6 +178,7 @@ class ArcadeGame {
       return;
     }
     _filteredDepth += (n - _filteredDepth) * _inputFilterK;
+    notifyListeners();
   }
 
   /// Objetivo actual del pájaro a partir de la profundidad filtrada.
@@ -189,12 +194,14 @@ class ArcadeGame {
 
   void reset() {
     _applyStart();
+    notifyListeners();
   }
 
   /// Avanza solo el reloj visual (animación de muerte, cielo, nubes)
   /// después del game over, cuando `update()` ya no simula.
   void tick(double dt) {
     elapsed += dt;
+    notifyListeners();
   }
 
   /// Avanza la simulación.
@@ -252,11 +259,13 @@ class ArcadeGame {
       if (lives <= 0) {
         gameOver = true;
         gameOverAt = elapsed;
+        notifyListeners();
         return ArcadeEvent.hit;
       }
       event = ArcadeEvent.hit;
     }
 
+    notifyListeners();
     return event;
   }
 

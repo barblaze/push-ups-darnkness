@@ -214,7 +214,19 @@ void main() {
 
     test('counts exactly one rep per down-up cycle with moving hips', () {
       final counter = make();
-      for (final depth in [0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 0.8, 0.6, 0.4, 0.2, 0.0]) {
+      for (final depth in [
+        0.0,
+        0.2,
+        0.4,
+        0.6,
+        0.8,
+        1.0,
+        0.8,
+        0.6,
+        0.4,
+        0.2,
+        0.0
+      ]) {
         feed(counter, frontPoseReal(depth: depth), 5);
       }
       expect(counter.reps, 1);
@@ -491,6 +503,36 @@ void main() {
       expect(update.bodyVisible, isFalse);
       expect(update.feedback, FeedbackKind.notVisible);
       expect(counter.reps, 0);
+    });
+
+    test('FrameUpdate expone el análisis y la visibilidad de la cara', () {
+      final cal = HeadCalibrator();
+      final counter = make(
+        mode: PushUpMode.free,
+        filterStrength: 1.0,
+        headCalibrator: cal,
+      );
+      cal.sample(headPose(noseY: 0.2, drop: 1.0));
+      cal.sample(headPose(noseY: 0.8, drop: 0.3));
+
+      final visible = counter.update(
+        headPose(noseY: 0.5, drop: 0.3, faceVisible: true),
+      );
+      expect(visible.bodyVisible, isTrue);
+      expect(visible.faceVisible, isTrue);
+      expect(visible.analysis.bodyVisible, isTrue);
+      expect(visible.analysis.dropRatio, closeTo(0.3, 1e-9));
+
+      final hidden = counter.update(
+        headPose(noseY: 0.5, drop: 0.3, faceVisible: false),
+      );
+      expect(hidden.faceVisible, isFalse);
+      expect(hidden.analysis.bodyVisible, isTrue);
+
+      final none = counter.update(invisible());
+      expect(none.bodyVisible, isFalse);
+      expect(none.faceVisible, isFalse);
+      expect(none.analysis.bodyVisible, isFalse);
     });
   });
 }

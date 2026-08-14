@@ -38,6 +38,8 @@ class FrameUpdate {
     required this.sagRatio,
     required this.feedback,
     required this.bodyVisible,
+    required this.analysis,
+    required this.faceVisible,
     this.completedRep,
   });
 
@@ -48,6 +50,14 @@ class FrameUpdate {
   final double sagRatio;
   final FeedbackKind feedback;
   final bool bodyVisible;
+
+  /// Análisis de forma del frame (compartido con la UI para no repetir
+  /// `analyzeBody` en la misma pose).
+  final BodyAnalysis analysis;
+
+  /// Si la nariz era visible en este frame (señal de conteo por cabeza).
+  final bool faceVisible;
+
   final CompletedRep? completedRep;
 }
 
@@ -244,6 +254,8 @@ class PushUpCounter {
         sagRatio: 0,
         feedback: FeedbackKind.notVisible,
         bodyVisible: false,
+        analysis: analysis,
+        faceVisible: faceVisible,
       );
     }
 
@@ -254,9 +266,8 @@ class PushUpCounter {
       faceVisible ? 1.0 - calibrator.headDepth(pose) : analysis.dropRatio,
     );
 
-    _liveDepth =
-        ((_upThreshold - signal) / (_upThreshold - _targetThreshold))
-            .clamp(0.0, 1.0);
+    _liveDepth = ((_upThreshold - signal) / (_upThreshold - _targetThreshold))
+        .clamp(0.0, 1.0);
 
     CompletedRep? completedRep;
 
@@ -346,9 +357,8 @@ class PushUpCounter {
       _minStraightness = 1;
     }
 
-    final feedback = mode.countsAnyRep
-        ? FeedbackKind.good
-        : _pickFeedback(analysis);
+    final feedback =
+        mode.countsAnyRep ? FeedbackKind.good : _pickFeedback(analysis);
     return FrameUpdate(
       phase: _phase,
       reps: _reps,
@@ -357,6 +367,8 @@ class PushUpCounter {
       sagRatio: analysis.sagRatio,
       feedback: feedback,
       bodyVisible: analysis.bodyVisible || faceVisible,
+      analysis: analysis,
+      faceVisible: faceVisible,
       completedRep: completedRep,
     );
   }

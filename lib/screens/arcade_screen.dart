@@ -7,6 +7,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:pushquest_logic/pushquest_logic.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../game/arcade.dart';
 import '../game/camera_setup.dart';
@@ -34,11 +35,26 @@ class ArcadeScreen extends StatefulWidget {
 }
 
 class _ArcadeScreenState extends State<ArcadeScreen>
-    with SingleTickerProviderStateMixin {
+    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   final PoseDetectorService _poseDetector = PoseDetectorService();
   late final PushUpCounter _counter;
   final ArcadeGame _game = ArcadeGame();
   final HeadCalibrator _headCal = HeadCalibrator();
+
+  /// Procesa como mucho un frame cada este intervalo (≈15 fps): bastante para
+  /// el control 1:1 del pájaro y con la mitad del coste de ML Kit.
+  static const int _frameIntervalMs = 66;
+
+  final Stopwatch _frameClock = Stopwatch();
+
+  /// Pose y análisis del último frame procesado, notificados por separado para
+  /// repintar solo los subárboles que cambian por frame.
+  final ValueNotifier<PoseData?> _pose = ValueNotifier(null);
+  final ValueNotifier<FrameUpdate?> _update = ValueNotifier(null);
+
+  static final PoseData _emptyPose = PoseData(
+    List.generate(PoseData.count, (_) => const Joint(0, 0, 0)),
+  );
 
   CameraController? _cameraController;
   Ticker? _ticker;
@@ -49,11 +65,11 @@ class _ArcadeScreenState extends State<ArcadeScreen>
   String? _fatalError;
   bool _permissionDenied = false;
 
+  bool _backgrounded = false;
+
   _ArcadePhase _phase = _ArcadePhase.init;
   int _countdown = 3;
   Timer? _countdownTimer;
-  FrameUpdate? _lastUpdate;
-  PoseData? _lastPose;
   DateTime? _lastTick;
   DateTime? _sessionStart;
   int _bestCombo = 0;
@@ -62,6 +78,8 @@ class _ArcadeScreenState extends State<ArcadeScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _frameClock.start();
     _counter = PushUpCounter(
       mode: PushUpMode.arcade,
       headCalibrator: _headCal,
@@ -72,13 +90,36 @@ class _ArcadeScreenState extends State<ArcadeScreen>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+    unawaited(WakelockPlus.disable());
     _countdownTimer?.cancel();
     _ticker?.dispose();
     _cameraController?.stopImageStream();
     _cameraController?.dispose();
     _poseDetector.dispose();
+    _pose.dispose();
+    _update.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (!_backgrounded) return;
+      _backgrounded = false;
+      _lastTick = null;
+      if (_phase == _ArcadePhase.playing && !_paused) {
+        _ensureTickerRunning();
+      }
+      setState(() {});
+    } else if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      if (_backgrounded) return;
+      _backgrounded = true;
+      _ticker?.stop();
+    }
   }
 
   Future<void> _init() async {
@@ -145,14 +186,32 @@ class _ArcadeScreenState extends State<ArcadeScreen>
           _phase = _ArcadePhase.playing;
           _sessionStart = DateTime.now();
         });
+        unawaited(WakelockPlus.enable());
+        _ensureTickerRunning();
         _game.reset();
         _bestCombo = 0;
       }
     });
   }
 
+  /// Arranca el ticker si está parado (p. ej. tras reanudar de pausa durante
+  /// el countdown). `Ticker.start()` no es idempotente, por eso se guarda.
+  void _ensureTickerRunning() {
+    final ticker = _ticker;
+    if (ticker != null && !ticker.isActive) ticker.start();
+  }
+
   Future<void> _onFrame(CameraImage image) async {
-    if (_isProcessing || _fatalError != null) return;
+    if (_isProcessing ||
+        _fatalError != null ||
+        _backgrounded ||
+        _paused ||
+        _phase == _ArcadePhase.gameOver ||
+        _phase == _ArcadePhase.init) {
+      return;
+    }
+    if (_frameClock.elapsedMilliseconds < _frameIntervalMs) return;
+    _frameClock.reset();
     _isProcessing = true;
     try {
       final rotation = _cameraController?.description.sensorOrientation ?? 0;
@@ -160,39 +219,33 @@ class _ArcadeScreenState extends State<ArcadeScreen>
         image,
         rotation: rotation,
       );
-      if (_phase == _ArcadePhase.playing || _phase == _ArcadePhase.countdown) {
-        final p = pose ?? _emptyPose();
-        if (_phase == _ArcadePhase.countdown) {
-          _headCal.sample(p);
-        }
-        final update = _counter.update(p);
-        _bestCombo = math.max(_bestCombo, update.combo);
-        if (update.completedRep != null) Haptics.rep();
-        if (update.bodyVisible) {
-          // Control 1:1 con la cabeza: arriba sube el pájaro y abajo baja. Si
-          // la cara no es visible cae al dropRatio invertido (mismo sentido).
-          final analysis = analyzeBody(p);
-          _game.feedDepth(
-            _headCal.faceVisible(p) ? _headCal.headDepth(p) : 1 - analysis.dropRatio,
-          );
-        }
-        if (mounted) {
-          setState(() {
-            _lastUpdate = update;
-            _lastPose = pose;
-          });
-        }
+      if (!mounted || _finishing) return;
+
+      final p = pose ?? _emptyPose;
+      if (_phase == _ArcadePhase.countdown) {
+        _headCal.sample(p);
       }
+      final update = _counter.update(p);
+      _bestCombo = math.max(_bestCombo, update.combo);
+      if (update.completedRep != null) Haptics.rep();
+      if (update.bodyVisible) {
+        // Control 1:1 con la cabeza: arriba sube el pájaro y abajo baja. Si
+        // la cara no es visible cae al dropRatio invertido (mismo sentido).
+        // El análisis viene del propio contador para no repetir analyzeBody.
+        _game.feedDepth(
+          update.faceVisible
+              ? _headCal.headDepth(p)
+              : 1 - update.analysis.dropRatio,
+        );
+      }
+      _update.value = update;
+      _pose.value = pose;
     } catch (_) {
       // Un frame fallido no debe detener la partida.
     } finally {
       _isProcessing = false;
     }
   }
-
-  PoseData _emptyPose() => PoseData(
-        List.generate(PoseData.count, (_) => const Joint(0, 0, 0)),
-      );
 
   void _onTick(Duration _) {
     if (!mounted || _paused) return;
@@ -204,7 +257,7 @@ class _ArcadeScreenState extends State<ArcadeScreen>
     if (dt <= 0) return;
 
     if (_phase == _ArcadePhase.playing) {
-      final update = _lastUpdate;
+      final update = _update.value;
       final event = _game.update(
         dt.clamp(0.0, 0.05),
         targetAltitude: _game.targetAltitude,
@@ -216,6 +269,7 @@ class _ArcadeScreenState extends State<ArcadeScreen>
           break;
         case ArcadeEvent.hit:
           if (_game.gameOver) {
+            unawaited(WakelockPlus.disable());
             Haptics.celebrate();
             setState(() => _phase = _ArcadePhase.gameOver);
           } else {
@@ -225,11 +279,9 @@ class _ArcadeScreenState extends State<ArcadeScreen>
         case ArcadeEvent.none:
           break;
       }
-      setState(() {});
     }
     if (_phase == _ArcadePhase.gameOver) {
       _game.tick(dt.clamp(0.0, 0.05));
-      setState(() {});
     }
   }
 
@@ -237,6 +289,7 @@ class _ArcadeScreenState extends State<ArcadeScreen>
     if (_finishing) return;
     _finishing = true;
     _ticker?.stop();
+    unawaited(WakelockPlus.disable());
     await _cameraController?.stopImageStream();
     await _cameraController?.dispose();
     _cameraController = null;
@@ -262,6 +315,16 @@ class _ArcadeScreenState extends State<ArcadeScreen>
 
   void _togglePause() {
     setState(() => _paused = !_paused);
+    if (_paused) {
+      _ticker?.stop();
+      unawaited(WakelockPlus.disable());
+    } else {
+      _lastTick = null;
+      if (_phase == _ArcadePhase.playing) {
+        _ensureTickerRunning();
+        unawaited(WakelockPlus.enable());
+      }
+    }
   }
 
   @override
@@ -284,21 +347,25 @@ class _ArcadeScreenState extends State<ArcadeScreen>
       fit: StackFit.expand,
       children: [
         CameraPreview(controller),
-        if (_lastPose != null)
-          CustomPaint(
-            painter: PoseOverlayPainter(
-              pose: _lastPose!,
-              mirror: _mirrorPreview,
-              color: AppColors.accent.withValues(alpha: 0.6),
-            ),
-          ),
+        ValueListenableBuilder<PoseData?>(
+          valueListenable: _pose,
+          builder: (context, pose, _) {
+            if (pose == null) return const SizedBox.shrink();
+            return CustomPaint(
+              painter: PoseOverlayPainter(
+                pose: pose,
+                mirror: _mirrorPreview,
+                color: AppColors.accent.withValues(alpha: 0.6),
+              ),
+            );
+          },
+        ),
         CustomPaint(
           painter: ArcadePainter(
             game: _game,
             characterColor: Color(widget.state.avatar.color),
             bestScore: widget.state.arcadeBest,
             showDepthGauge: _phase == _ArcadePhase.countdown,
-            depthRatio: _game.filteredDepth,
           ),
         ),
         SafeArea(child: _hud()),
@@ -314,53 +381,60 @@ class _ArcadeScreenState extends State<ArcadeScreen>
   }
 
   Widget _hud() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: Column(
-        children: [
-          Row(
+    return ListenableBuilder(
+      listenable: _game,
+      builder: (context, _) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Column(
             children: [
-              IconButton(
-                onPressed: _togglePause,
-                icon: Icon(
-                  _paused ? Icons.play_arrow : Icons.pause,
-                  color: Colors.white,
-                ),
-                style: IconButton.styleFrom(backgroundColor: Colors.black45),
-              ),
-              IconButton(
-                onPressed: _confirmExit,
-                icon: const Icon(Icons.close, color: Colors.white),
-                style: IconButton.styleFrom(backgroundColor: Colors.black45),
-              ),
-              const Spacer(),
-              _hudChip(
-                '🏆',
-                '${math.max(_game.score, widget.state.arcadeBest)}',
-              ),
-              const SizedBox(width: 8),
-              if (_phase == _ArcadePhase.playing)
-                _hudChip(
-                  '🤸',
-                  '${_counter.reps}',
-                ),
-              const SizedBox(width: 8),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.black45,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  _hearts(),
-                  style: const TextStyle(fontSize: 16),
-                ),
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: _togglePause,
+                    icon: Icon(
+                      _paused ? Icons.play_arrow : Icons.pause,
+                      color: Colors.white,
+                    ),
+                    style:
+                        IconButton.styleFrom(backgroundColor: Colors.black45),
+                  ),
+                  IconButton(
+                    onPressed: _confirmExit,
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    style:
+                        IconButton.styleFrom(backgroundColor: Colors.black45),
+                  ),
+                  const Spacer(),
+                  _hudChip(
+                    '🏆',
+                    '${math.max(_game.score, widget.state.arcadeBest)}',
+                  ),
+                  const SizedBox(width: 8),
+                  if (_phase == _ArcadePhase.playing)
+                    _hudChip(
+                      '🤸',
+                      '${_counter.reps}',
+                    ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.black45,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      _hearts(),
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -392,66 +466,73 @@ class _ArcadeScreenState extends State<ArcadeScreen>
   }
 
   Widget _countdownOverlay() {
-    final visible = _lastUpdate?.bodyVisible ?? false;
-    return IgnorePointer(
-      child: Container(
-        color: Colors.black.withValues(alpha: 0.5),
-        alignment: Alignment.center,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text(
-              'PREPÁRATE',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 4,
-              ),
-            ),
-            const SizedBox(height: 4),
-            TweenAnimationBuilder<double>(
-              key: ValueKey(_countdown),
-              tween: Tween(begin: 0.7, end: 1),
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOutBack,
-              builder: (context, value, child) =>
-                  Transform.scale(scale: value, child: child),
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  '$_countdown',
-                  style: const TextStyle(
+    return ValueListenableBuilder<FrameUpdate?>(
+      valueListenable: _update,
+      builder: (context, update, _) {
+        final visible = update?.bodyVisible ?? false;
+        return IgnorePointer(
+          child: Container(
+            color: Colors.black.withValues(alpha: 0.5),
+            alignment: Alignment.center,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  'PREPÁRATE',
+                  style: TextStyle(
                     color: Colors.white,
-                    fontSize: 110,
-                    fontWeight: FontWeight.w900,
-                    height: 1.1,
-                    shadows: [Shadow(color: Colors.black87, blurRadius: 16)],
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 4,
                   ),
                 ),
-              ),
+                const SizedBox(height: 4),
+                TweenAnimationBuilder<double>(
+                  key: ValueKey(_countdown),
+                  tween: Tween(begin: 0.7, end: 1),
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOutBack,
+                  builder: (context, value, child) =>
+                      Transform.scale(scale: value, child: child),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      '$_countdown',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 110,
+                        fontWeight: FontWeight.w900,
+                        height: 1.1,
+                        shadows: [
+                          Shadow(color: Colors.black87, blurRadius: 16),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Arriba subes · abajo bajas',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  visible ? 'Cuerpo visible ✓' : 'Entra en cuadro',
+                  style: TextStyle(
+                    color: visible ? AppColors.success : Colors.white70,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 20),
-            const Text(
-              'Arriba subes · abajo bajas',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              visible ? 'Cuerpo visible ✓' : 'Entra en cuadro',
-              style: TextStyle(
-                color: visible ? AppColors.success : Colors.white70,
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -478,7 +559,9 @@ class _ArcadeScreenState extends State<ArcadeScreen>
             ),
             const SizedBox(height: 4),
             Text(
-              newBest ? '¡NUEVO RÉCORD! 🎉' : 'Mejor: ${widget.state.arcadeBest}',
+              newBest
+                  ? '¡NUEVO RÉCORD! 🎉'
+                  : 'Mejor: ${widget.state.arcadeBest}',
               style: TextStyle(
                 color: newBest ? AppColors.warning : Colors.white70,
                 fontSize: 15,
