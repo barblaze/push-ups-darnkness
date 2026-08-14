@@ -24,9 +24,15 @@ void main() {
           ),
         );
 
+        // El bonus de la misión diaria depende del día en que se ejecuta el
+        // test; el resto de estadísticas no.
+        final mission = DailyMission.forDay(DateTime.now());
+        final missionBonus =
+            mission.isComplete(10) ? RepScoring.missionBonus(mission.targetReps, 10) : 0;
+
         expect(state.stats.sessionsCount, 1);
         expect(state.stats.totalReps, 10);
-        expect(state.stats.totalXp, 80);
+        expect(state.stats.totalXp, 80 + missionBonus);
         expect(state.stats.streakDays, 1);
         expect(state.stats.daysActive, 1);
         expect(state.stats.floorReps, 10);
